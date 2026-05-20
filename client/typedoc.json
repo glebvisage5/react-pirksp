@@ -1,0 +1,49 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+
+  "entryPoints": [
+    "src/types",
+    "src/services",
+    "src/api",
+    "src/components",
+    "src/lib",
+    "src/utils"
+  ],
+
+  "entryPointStrategy": "expand",
+
+  "tsconfig": "tsconfig.json",
+
+  "out": "docs_output",
+  "name": "Образовательная экосистема — Документация разработчика",
+
+  "includeVersion": true,
+  "cleanOutputDir": true,
+
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**",
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/dist/**",
+    "**/build/**"
+  ],
+
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+
+  "readme": "none",
+  "theme": "default",
+
+  "skipErrorChecking": true,
+
+  "sort": [
+    "source-order"
+  ],
+
+  "plugin": [
+    "typedoc-plugin-markdown"
+  ]
+}
