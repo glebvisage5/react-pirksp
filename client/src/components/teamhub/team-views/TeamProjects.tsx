@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -6,54 +6,13 @@ import { Label } from "../../ui/label";
 import { Textarea } from "../../ui/textarea";
 import { useLanguage } from "../../../lib/language-context";
 import { toast } from "sonner@2.0.3";
-import { 
-  FolderKanban, 
-  Plus, 
-  Search, 
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  PlayCircle,
-  X,
-  Save
-} from "lucide-react";
+import { Loader2, FolderKanban, Plus, Search, MoreVertical, Eye, Edit, Trash2, CheckCircle2, Clock, AlertCircle, PlayCircle, Save } from "lucide-react";
+// X removed — unused
 import { Badge } from "../../ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../../ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../../ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../ui/select";
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  status: "active" | "planned" | "completed" | "on-hold";
-  tasks: number;
-  completedTasks: number;
-  startDate: string;
-  endDate: string;
-}
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
+import { apiTeams, type Project } from "../../../api/teams";
 
 interface TeamProjectsProps {
   teamId: string;
@@ -68,49 +27,15 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: "1",
-      name: language === "en" ? "Mobile App Development" : "Разработка мобильного приложения",
-      description: language === "en" ? "iOS and Android native applications" : "Нативные приложения для iOS и Android",
-      status: "active",
-      tasks: 24,
-      completedTasks: 12,
-      startDate: "2024-01-15",
-      endDate: "2024-06-30",
-    },
-    {
-      id: "2",
-      name: language === "en" ? "Dashboard Redesign" : "Редизайн панели управления",
-      description: language === "en" ? "Complete UI/UX overhaul" : "Полная переработка UI/UX",
-      status: "active",
-      tasks: 18,
-      completedTasks: 15,
-      startDate: "2024-02-01",
-      endDate: "2024-04-30",
-    },
-    {
-      id: "3",
-      name: language === "en" ? "API Integration" : "Интеграция API",
-      description: language === "en" ? "Third-party services integration" : "Интеграция сторонних сервисов",
-      status: "planned",
-      tasks: 10,
-      completedTasks: 0,
-      startDate: "2024-05-01",
-      endDate: "2024-07-31",
-    },
-    {
-      id: "4",
-      name: language === "en" ? "Security Audit" : "Аудит безопасности",
-      description: language === "en" ? "Complete security review" : "Полный анализ безопасности",
-      status: "completed",
-      tasks: 15,
-      completedTasks: 15,
-      startDate: "2023-12-01",
-      endDate: "2024-01-31",
-    },
-  ]);
+  useEffect(() => {
+    apiTeams.projects(teamId)
+      .then(setProjects)
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, [teamId]);
 
   const t = {
     projects: language === "en" ? "Projects" : "Проекты",
@@ -148,125 +73,117 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
     close: language === "en" ? "Close" : "Закрыть",
     noProjects: language === "en" ? "No projects found" : "Проекты не найдены",
     createFirst: language === "en" ? "Create your first project" : "Создайте первый проект",
-    deleteConfirm: language === "en" ? "Are you sure you want to delete this project?" : "Вы уверены, что хотите удалить этот проект?",
     projectCreated: language === "en" ? "Project created" : "Проект создан",
     projectUpdated: language === "en" ? "Project updated" : "Проект обновлен",
     projectDeleted: language === "en" ? "Project deleted" : "Проект удален",
   };
 
-  const isLeader = userRole === "Team Leader";
+  const canEdit = userRole === "Team Leader" || userRole === "Moderator";
+
+  const formatDate = (str: string | null | undefined) => {
+    if (!str) return "";
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return str;
+    return d.toLocaleDateString(language === "en" ? "en-GB" : "ru-RU");
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "active":
-        return <PlayCircle className="h-4 w-4" />;
-      case "planned":
-        return <Clock className="h-4 w-4" />;
-      case "completed":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "on-hold":
-        return <AlertCircle className="h-4 w-4" />;
-      default:
-        return <FolderKanban className="h-4 w-4" />;
+      case "active": return <PlayCircle className="h-4 w-4" />;
+      case "planned": return <Clock className="h-4 w-4" />;
+      case "completed": return <CheckCircle2 className="h-4 w-4" />;
+      case "on-hold": return <AlertCircle className="h-4 w-4" />;
+      default: return <FolderKanban className="h-4 w-4" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
-        return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-      case "planned":
-        return "bg-blue-500/10 text-blue-600 border-blue-500/20";
-      case "completed":
-        return "bg-gray-500/10 text-gray-600 border-gray-500/20";
-      case "on-hold":
-        return "bg-orange-500/10 text-orange-600 border-orange-500/20";
-      default:
-        return "bg-gray-500/10 text-gray-600 border-gray-500/20";
+      case "active": return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+      case "planned": return "bg-blue-500/10 text-blue-600 border-blue-500/20";
+      case "completed": return "bg-gray-500/10 text-gray-600 border-gray-500/20";
+      case "on-hold": return "bg-orange-500/10 text-orange-600 border-orange-500/20";
+      default: return "bg-gray-500/10 text-gray-600 border-gray-500/20";
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case "active":
-        return t.statusActive;
-      case "planned":
-        return t.statusPlanned;
-      case "completed":
-        return t.statusCompleted;
-      case "on-hold":
-        return t.statusOnHold;
-      default:
-        return status;
+      case "active": return t.statusActive;
+      case "planned": return t.statusPlanned;
+      case "completed": return t.statusCompleted;
+      case "on-hold": return t.statusOnHold;
+      default: return status;
     }
   };
 
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = 
-      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === "all" || project.status === filterStatus;
+  const filteredProjects = projects.filter(p => {
+    const matchesSearch =
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === "all" || p.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
-  const handleCreateProject = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateProject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const newProject: Project = {
-      id: String(projects.length + 1),
-      name: formData.get("name") as string,
-      description: formData.get("description") as string,
-      status: formData.get("status") as Project["status"],
-      tasks: 0,
-      completedTasks: 0,
-      startDate: formData.get("startDate") as string,
-      endDate: formData.get("endDate") as string,
-    };
-    setProjects([newProject, ...projects]);
-    setIsCreateDialogOpen(false);
-    toast.success(t.projectCreated);
-  };
-
-  const handleViewProject = (project: Project) => {
-    setSelectedProject(project);
-    setIsViewDialogOpen(true);
-  };
-
-  const handleEditProject = (project: Project) => {
-    setSelectedProject(project);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleUpdateProject = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedProject) return;
-
-    const formData = new FormData(e.currentTarget);
-    const updatedProject: Project = {
-      ...selectedProject,
-      name: formData.get("name") as string,
-      description: formData.get("description") as string,
-      status: formData.get("status") as Project["status"],
-      startDate: formData.get("startDate") as string,
-      endDate: formData.get("endDate") as string,
-    };
-    
-    setProjects(projects.map(p => p.id === selectedProject.id ? updatedProject : p));
-    setIsEditDialogOpen(false);
-    setSelectedProject(null);
-    toast.success(t.projectUpdated);
-  };
-
-  const handleDeleteProject = (projectId: string) => {
-    if (window.confirm(t.deleteConfirm)) {
-      setProjects(projects.filter(p => p.id !== projectId));
-      toast.success(t.projectDeleted);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const created = await apiTeams.createProject(teamId, {
+        title: fd.get("name") as string,
+        description: fd.get("description") as string,
+        status: fd.get("status") as Project["status"],
+        start_date: fd.get("startDate") as string || undefined,
+        end_date: fd.get("endDate") as string || undefined,
+      });
+      setProjects(prev => [created, ...prev]);
+      setIsCreateDialogOpen(false);
+      toast.success(t.projectCreated);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error");
     }
   };
 
+  const handleUpdateProject = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedProject) return;
+    const fd = new FormData(e.currentTarget);
+    try {
+      const updated = await apiTeams.updateProject(selectedProject.id, {
+        title: fd.get("name") as string,
+        description: fd.get("description") as string,
+        status: fd.get("status") as Project["status"],
+        start_date: fd.get("startDate") as string || undefined,
+        end_date: fd.get("endDate") as string || undefined,
+      });
+      setProjects(prev => prev.map(p => p.id === selectedProject.id ? updated : p));
+      setIsEditDialogOpen(false);
+      setSelectedProject(null);
+      toast.success(t.projectUpdated);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!window.confirm(language === "en" ? "Delete this project?" : "Удалить проект?")) return;
+    try {
+      await apiTeams.deleteProject(projectId);
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      toast.success(t.projectDeleted);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <FolderKanban className="h-6 w-6" />
@@ -275,22 +192,14 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
         <p className="text-muted-foreground mt-1">{t.subtitle}</p>
       </div>
 
-      {/* Actions Bar */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={t.search}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+            <Input placeholder={t.search} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
           </div>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t.filterAll}</SelectItem>
               <SelectItem value="active">{t.filterActive}</SelectItem>
@@ -300,155 +209,113 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
             </SelectContent>
           </Select>
         </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-xl transition-all w-full lg:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t.createProject}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{t.createProjectTitle}</DialogTitle>
-              <DialogDescription>{t.createProjectDesc}</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateProject} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t.projectName}</Label>
-                <Input 
-                  id="name" 
-                  name="name" 
-                  required 
-                  placeholder={language === "en" ? "Mobile App Development" : "Разработка мобильного приложения"} 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">{t.projectDescription}</Label>
-                <Textarea 
-                  id="description" 
-                  name="description" 
-                  required 
-                  placeholder={language === "en" ? "What is this project about?" : "О чём этот проект?"}
-                  rows={3}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {canEdit && (
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-xl transition-all w-full lg:w-auto">
+                <Plus className="h-4 w-4 mr-2" />{t.createProject}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{t.createProjectTitle}</DialogTitle>
+                <DialogDescription>{t.createProjectDesc}</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateProject} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="status">{t.projectStatus}</Label>
-                  <Select name="status" defaultValue="planned">
-                    <SelectTrigger id="status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="planned">{t.statusPlanned}</SelectItem>
-                      <SelectItem value="active">{t.statusActive}</SelectItem>
-                      <SelectItem value="on-hold">{t.statusOnHold}</SelectItem>
-                      <SelectItem value="completed">{t.statusCompleted}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="name">{t.projectName}</Label>
+                  <Input id="name" name="name" required placeholder={language === "en" ? "Mobile App Development" : "Разработка мобильного приложения"} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="startDate">{t.projectStartDate}</Label>
-                  <Input id="startDate" name="startDate" type="date" required />
+                  <Label htmlFor="description">{t.projectDescription}</Label>
+                  <Textarea id="description" name="description" rows={3} placeholder={language === "en" ? "What is this project about?" : "О чём этот проект?"} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">{t.projectEndDate}</Label>
-                  <Input id="endDate" name="endDate" type="date" required />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>{t.projectStatus}</Label>
+                    <Select name="status" defaultValue="planned">
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="planned">{t.statusPlanned}</SelectItem>
+                        <SelectItem value="active">{t.statusActive}</SelectItem>
+                        <SelectItem value="on-hold">{t.statusOnHold}</SelectItem>
+                        <SelectItem value="completed">{t.statusCompleted}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate">{t.projectStartDate}</Label>
+                    <Input id="startDate" name="startDate" type="date" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">{t.projectEndDate}</Label>
+                    <Input id="endDate" name="endDate" type="date" />
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2 justify-end pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  {t.cancel}
-                </Button>
-                <Button type="submit" className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
-                  {t.create}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>{t.cancel}</Button>
+                  <Button type="submit" className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">{t.create}</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      {/* Projects Grid */}
       {filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredProjects.map((project) => {
-            const progress = Math.round((project.completedTasks / project.tasks) * 100) || 0;
+          {filteredProjects.map(project => {
+            const progress = project.task_count > 0
+              ? Math.round((project.completed_task_count / project.task_count) * 100)
+              : 0;
             return (
               <Card key={project.id} className="p-6 hover:shadow-lg transition-all">
                 <div className="space-y-4">
-                  {/* Header */}
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg mb-1">{project.name}</h3>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {project.description}
-                      </p>
+                      <h3 className="font-semibold text-lg mb-1">{project.title}</h3>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{project.description}</p>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewProject(project)}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          {t.view}
+                        <DropdownMenuItem onClick={() => { setSelectedProject(project); setIsViewDialogOpen(true); }}>
+                          <Eye className="h-4 w-4 mr-2" />{t.view}
                         </DropdownMenuItem>
-                        {isLeader && (
+                        {canEdit && (
                           <>
-                            <DropdownMenuItem onClick={() => handleEditProject(project)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              {t.edit}
+                            <DropdownMenuItem onClick={() => { setSelectedProject(project); setIsEditDialogOpen(true); }}>
+                              <Edit className="h-4 w-4 mr-2" />{t.edit}
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-red-600"
-                              onClick={() => handleDeleteProject(project.id)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {t.delete}
+                            <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteProject(project.id)}>
+                              <Trash2 className="h-4 w-4 mr-2" />{t.delete}
                             </DropdownMenuItem>
                           </>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-
-                  {/* Status Badge */}
                   <Badge className={`${getStatusColor(project.status)} border`}>
                     {getStatusIcon(project.status)}
                     <span className="ml-1">{getStatusText(project.status)}</span>
                   </Badge>
-
-                  {/* Tasks Progress */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">{t.progress}</span>
-                      <span className="font-medium">
-                        {project.completedTasks}/{project.tasks} {t.tasks}
-                      </span>
+                      <span className="font-medium">{project.completed_task_count}/{project.task_count} {t.tasks}</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-600 transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                      />
+                      <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-600 transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                   </div>
-
-                  {/* Dates */}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
-                    <div>
-                      <span className="font-medium">{t.startDate}:</span> {project.startDate}
+                  {(project.start_date || project.end_date) && (
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                      {project.start_date && <div><span className="font-medium">{t.startDate}:</span> {formatDate(project.start_date)}</div>}
+                      {project.end_date && <div><span className="font-medium">{t.endDate}:</span> {formatDate(project.end_date)}</div>}
                     </div>
-                    <div>
-                      <span className="font-medium">{t.endDate}:</span> {project.endDate}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </Card>
             );
@@ -460,36 +327,24 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
             <FolderKanban className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
             <h3 className="text-lg font-semibold mb-2">{t.noProjects}</h3>
             <p className="text-sm text-muted-foreground mb-4">{t.createFirst}</p>
-            <Button 
-              onClick={() => setIsCreateDialogOpen(true)}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t.createProject}
-            </Button>
+            {canEdit && (
+              <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
+                <Plus className="h-4 w-4 mr-2" />{t.createProject}
+              </Button>
+            )}
           </div>
         </Card>
       )}
 
-      {/* View Project Dialog */}
+      {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t.viewProjectTitle}</DialogTitle>
-            <DialogDescription>
-              {language === "en" ? "View project information and details" : "Просмотр информации и деталей проекта"}
-            </DialogDescription>
+            <DialogDescription>{selectedProject?.description}</DialogDescription>
           </DialogHeader>
           {selectedProject && (
             <div className="space-y-4">
-              <div>
-                <Label className="text-muted-foreground">{t.projectName}</Label>
-                <p className="text-lg font-semibold mt-1">{selectedProject.name}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">{t.projectDescription}</Label>
-                <p className="mt-1">{selectedProject.description}</p>
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">{t.projectStatus}</Label>
@@ -502,68 +357,38 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
                 </div>
                 <div>
                   <Label className="text-muted-foreground">{t.progress}</Label>
-                  <p className="mt-1 font-semibold">
-                    {selectedProject.completedTasks}/{selectedProject.tasks} {t.tasks}
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">{t.projectStartDate}</Label>
-                  <p className="mt-1">{selectedProject.startDate}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">{t.projectEndDate}</Label>
-                  <p className="mt-1">{selectedProject.endDate}</p>
+                  <p className="mt-1 font-semibold">{selectedProject.completed_task_count}/{selectedProject.task_count} {t.tasks}</p>
                 </div>
               </div>
               <div className="flex justify-end pt-4">
-                <Button onClick={() => setIsViewDialogOpen(false)}>
-                  {t.close}
-                </Button>
+                <Button onClick={() => setIsViewDialogOpen(false)}>{t.close}</Button>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Edit Project Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t.editProjectTitle}</DialogTitle>
-            <DialogDescription>
-              {language === "en" ? "Update project information and settings" : "Обновление информации и настроек проекта"}
-            </DialogDescription>
           </DialogHeader>
           {selectedProject && (
             <form onSubmit={handleUpdateProject} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">{t.projectName}</Label>
-                <Input 
-                  id="edit-name" 
-                  name="name" 
-                  required 
-                  defaultValue={selectedProject.name}
-                />
+                <Input id="edit-name" name="name" required defaultValue={selectedProject.title} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-description">{t.projectDescription}</Label>
-                <Textarea 
-                  id="edit-description" 
-                  name="description" 
-                  required 
-                  defaultValue={selectedProject.description}
-                  rows={3}
-                />
+                <Textarea id="edit-description" name="description" rows={3} defaultValue={selectedProject.description ?? ""} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-status">{t.projectStatus}</Label>
+                  <Label>{t.projectStatus}</Label>
                   <Select name="status" defaultValue={selectedProject.status}>
-                    <SelectTrigger id="edit-status">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="planned">{t.statusPlanned}</SelectItem>
                       <SelectItem value="active">{t.statusActive}</SelectItem>
@@ -574,32 +399,17 @@ export function TeamProjects({ teamId, userRole = "Team Leader" }: TeamProjectsP
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-startDate">{t.projectStartDate}</Label>
-                  <Input 
-                    id="edit-startDate" 
-                    name="startDate" 
-                    type="date" 
-                    required 
-                    defaultValue={selectedProject.startDate}
-                  />
+                  <Input id="edit-startDate" name="startDate" type="date" defaultValue={selectedProject.start_date ?? ""} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-endDate">{t.projectEndDate}</Label>
-                  <Input 
-                    id="edit-endDate" 
-                    name="endDate" 
-                    type="date" 
-                    required 
-                    defaultValue={selectedProject.endDate}
-                  />
+                  <Input id="edit-endDate" name="endDate" type="date" defaultValue={selectedProject.end_date ?? ""} />
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                  {t.cancel}
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>{t.cancel}</Button>
                 <Button type="submit" className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
-                  <Save className="h-4 w-4 mr-2" />
-                  {t.save}
+                  <Save className="h-4 w-4 mr-2" />{t.save}
                 </Button>
               </div>
             </form>

@@ -234,7 +234,7 @@ function AppContent() {
   >(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { language } = useLanguage();
-  const { isAdmin, userMode, setUserMode, setUser } = useUser();
+  const { isAdmin, userMode, setUserMode, setUser, logout } = useUser();
 
   const t = {
     studentDashboard:
@@ -277,12 +277,11 @@ function AppContent() {
     setDashboardView("home");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     setIsAuthenticated(false);
     setAppView("company");
     setDashboardView("home");
-    setUser(null);
-    setUserMode("user");
   };
 
   const handleBackToCompany = () => {

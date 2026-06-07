@@ -35,20 +35,18 @@ import {
   TabsTrigger,
 } from "../../ui/tabs";
 import { toast } from "sonner@2.0.3";
+import { type Team } from "../../../api/teams";
 
 interface TeamSettingsProps {
   teamId: string;
-  team: {
-    name: string;
-    description: string;
-  };
+  team: Team;
   userRole?: "Team Leader" | "Moderator" | "Member" | "Viewer";
 }
 
 export function TeamSettings({ teamId, team, userRole = "Team Leader" }: TeamSettingsProps) {
   const { language } = useLanguage();
   const [teamName, setTeamName] = useState(team.name);
-  const [teamDescription, setTeamDescription] = useState(team.description);
+  const [teamDescription, setTeamDescription] = useState(team.description ?? "");
   
   // Notification settings
   const [notifyNewMember, setNotifyNewMember] = useState(true);

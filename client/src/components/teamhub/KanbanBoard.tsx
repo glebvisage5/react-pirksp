@@ -23,19 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: "todo" | "in-progress" | "review" | "done";
-  priority: "low" | "medium" | "high" | "urgent";
-  assignee: string;
-  project: string;
-  projectId?: string;
-  dueDate: string;
-  createdAt: string;
-  sourceSpec?: string;
-}
+import { type TeamTask } from "../../api/teams";
+
+type Task = TeamTask;
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -144,28 +134,27 @@ const TaskCard = ({ task, onTaskClick, onTaskEdit, onTaskDelete, onDragStart }: 
           </DropdownMenu>
         </div>
 
-        <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+        {task.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+        )}
 
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className={getPriorityColor(task.priority)}>
             {getPriorityLabel(task.priority)}
           </Badge>
-          {task.sourceSpec && (
-            <Badge variant="outline" className="text-xs">
-              {t.fromSpec}
-            </Badge>
-          )}
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <User className="h-3 w-3" />
-            <span className="truncate max-w-[100px]">{task.assignee}</span>
+            <span className="truncate max-w-[100px]">{task.assignee_name ?? "—"}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            <span>{task.dueDate}</span>
-          </div>
+          {task.due_date && (
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span>{task.due_date}</span>
+            </div>
+          )}
         </div>
       </div>
     </Card>

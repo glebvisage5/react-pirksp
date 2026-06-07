@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { apiLogin, apiRegister } from "../../api/auth";
 import { Button } from "../ui/button";
 import { Moon, Sun, Globe, Sparkles, ChevronRight, Code2, Zap, Users, Shield, CheckCircle2, Clock, Package, Star, Briefcase, HeadphonesIcon, Lightbulb, Rocket, Settings, TrendingUp, Mail, Lock, User, Eye, EyeOff, Building, Menu, X, FileText } from "lucide-react";
 import { useTheme } from "../../lib/theme-context";
@@ -58,203 +59,54 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
     confirmPassword: ""
   });
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Валидация полей
-    if (!loginForm.email) {
-      toast.error(t.validation.emailRequired, {
+    if (!loginForm.email || !loginForm.password) return;
+    try {
+      const { user } = await apiLogin(loginForm.email, loginForm.password);
+      setUser(user);
+      onLogin();
+      setIsLoginModalOpen(false);
+      setTimeout(() => setIsServicesModalOpen(true), 300);
+      toast.success(t.validation.loginSuccess, {
+        duration: 3000,
+        className: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Ошибка входа";
+      toast.error(msg, {
         duration: 3000,
         className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
       });
-      return;
     }
-    
-    if (!loginForm.email.includes("@")) {
-      toast.error(t.validation.emailInvalid, {
-        duration: 3000,
-        className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-      });
-      return;
-    }
-    
-    if (!loginForm.password) {
-      toast.error(t.validation.passwordRequired, {
-        duration: 3000,
-        className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-      });
-      return;
-    }
-    
-    if (loginForm.password.length < 6) {
-      toast.error(t.validation.passwordMin, {
-        duration: 3000,
-        className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-      });
-      return;
-    }
-    
-    // Определяем роль на основе email (для демо)
-    const isAdmin = loginForm.email.includes("admin");
-    
-    // Устанавливаем пользователя
-    setUser({
-      id: "1",
-      name: loginForm.email.split("@")[0],
-      email: loginForm.email,
-      role: isAdmin ? "admin" : "user"
-    });
-    
-    onLogin();
-    setIsLoginModalOpen(false);
-    // Открываем модальное окно выбора сервиса после успешного входа
-    setTimeout(() => setIsServicesModalOpen(true), 300);
-    toast.success(t.validation.loginSuccess, {
-      duration: 3000,
-      className: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-    });
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Валидация полей
-    if (!registerForm.name) {
-      toast.error(
-        language === "en" 
-          ? "Please enter your full name"
-          : "Пожалуйста, введите полное имя",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (registerForm.name.length < 3) {
-      toast.error(
-        language === "en" 
-          ? "Name must be at least 3 characters long"
-          : "Имя должно содержать минимум 3 символа",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (!registerForm.email) {
-      toast.error(
-        language === "en" 
-          ? "Please enter your email address"
-          : "Пожалуйста, введите адрес электронной почты",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (!registerForm.email.includes("@")) {
-      toast.error(
-        language === "en" 
-          ? "Please enter a valid email address"
-          : "Пожалуйста, введите корректный адрес электронной почты",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (!registerForm.institution) {
-      toast.error(
-        language === "en" 
-          ? "Please enter your institution name"
-          : "Пожалуйста, введите название учреждения",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (!registerForm.password) {
-      toast.error(
-        language === "en" 
-          ? "Please enter your password"
-          : "Пожалуйста, введите пароль",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (registerForm.password.length < 6) {
-      toast.error(
-        language === "en" 
-          ? "Password must be at least 6 characters long"
-          : "Пароль должен содержать минимум 6 символов",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
-    if (!registerForm.confirmPassword) {
-      toast.error(
-        language === "en" 
-          ? "Please confirm your password"
-          : "Пожалуйста, подтвердите пароль",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
-      return;
-    }
-    
     if (registerForm.password !== registerForm.confirmPassword) {
-      toast.error(
-        language === "en"
-          ? "Passwords do not match"
-          : "Пароли не совпадают",
-        {
-          duration: 3000,
-          className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-        }
-      );
+      toast.error(language === "en" ? "Passwords do not match" : "Пароли не совпадают", {
+        duration: 3000,
+        className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
+      });
       return;
     }
-    
-    // Определяем роль на основе email (для демо)
-    const isAdmin = registerForm.email.includes("admin");
-    
-    // Устанавливаем пользователя
-    setUser({
-      id: "1",
-      name: registerForm.name,
-      email: registerForm.email,
-      role: isAdmin ? "admin" : "user"
-    });
-    
-    onLogin();
-    setIsRegisterModalOpen(false);
-    // Открываем модальное окно выбора сервиса после успешной регистрации
-    setTimeout(() => setIsServicesModalOpen(true), 300);
-    toast.success(t.validation.registerSuccess, {
-      duration: 3000,
-      className: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-    });
+    try {
+      const { user } = await apiRegister(registerForm.name, registerForm.email, registerForm.password);
+      setUser(user);
+      onLogin();
+      setIsRegisterModalOpen(false);
+      setTimeout(() => setIsServicesModalOpen(true), 300);
+      toast.success(t.validation.registerSuccess, {
+        duration: 3000,
+        className: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Ошибка регистрации";
+      toast.error(msg, {
+        duration: 3000,
+        className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
+      });
+    }
   };
 
   const handleServiceSelect = (serviceId: string) => {

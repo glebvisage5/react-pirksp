@@ -1,4 +1,10 @@
 client/node_modules
+server/node_modules
+server/dist
 client/docs_output
 client/Crm-ecosystem.wiki
+client/build
+client/tsconfig.tsbuildinfo
 .env
+CLAUDE.md
+PLAN.md

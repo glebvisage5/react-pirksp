@@ -1,54 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
+import { Label } from "../../ui/label";
+import { Textarea } from "../../ui/textarea";
 import { useLanguage } from "../../../lib/language-context";
 import { KanbanBoard } from "../KanbanBoard";
 import { toast } from "sonner@2.0.3";
-import { 
-  CheckSquare, 
-  Plus, 
-  Search, 
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  User,
-  Calendar,
-  Circle,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  LayoutList,
-  LayoutGrid
-} from "lucide-react";
+import { Loader2, CheckSquare, Plus, Search, MoreVertical, Eye, Edit, Trash2, User, Calendar, LayoutList, LayoutGrid } from "lucide-react";
 import { Badge } from "../../ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../../ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../ui/select";
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: "todo" | "in-progress" | "review" | "done";
-  priority: "low" | "medium" | "high" | "urgent";
-  assignee: string;
-  project: string;
-  projectId: string;
-  dueDate: string;
-  createdAt: string;
-}
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
+import { apiTeams, type TeamTask, type Project, type TeamMember } from "../../../api/teams";
 
 interface TeamTasksProps {
   teamId: string;
@@ -57,105 +21,34 @@ interface TeamTasksProps {
 export function TeamTasks({ teamId }: TeamTasksProps) {
   const { language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterProject, setFilterProject] = useState<string>("all");
-  const [filterAssignee, setFilterAssignee] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [view, setView] = useState<"kanban" | "list">("kanban");
+  const [tasks, setTasks] = useState<TeamTask[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  const [tasksState, setTasksState] = useState<Task[]>([
-    {
-      id: "1",
-      title: language === "en" ? "Implement user authentication" : "Реализовать аутентификацию",
-      description: language === "en" ? "Add OAuth and email/password login" : "Добавить OAuth и вход по email",
-      status: "in-progress",
-      priority: "high",
-      assignee: language === "en" ? "John Doe" : "Иван Петров",
-      project: language === "en" ? "Mobile App Development" : "Разработка мобильного приложения",
-      projectId: "1",
-      dueDate: "2024-02-15",
-      createdAt: "2024-01-20",
-    },
-    {
-      id: "2",
-      title: language === "en" ? "Design dashboard mockups" : "Создать макеты панели управления",
-      description: language === "en" ? "Create high-fidelity designs" : "Создать детальные дизайны",
-      status: "review",
-      priority: "medium",
-      assignee: language === "en" ? "Jane Smith" : "Мария Сидорова",
-      project: language === "en" ? "Dashboard Redesign" : "Редизайн панели управления",
-      projectId: "2",
-      dueDate: "2024-02-10",
-      createdAt: "2024-01-18",
-    },
-    {
-      id: "3",
-      title: language === "en" ? "Setup CI/CD pipeline" : "Настроить CI/CD пайплайн",
-      description: language === "en" ? "Configure GitHub Actions" : "Настроить GitHub Actions",
-      status: "todo",
-      priority: "high",
-      assignee: language === "en" ? "Alex Johnson" : "Алексей Иванов",
-      project: language === "en" ? "Mobile App Development" : "Разработка мобильного приложения",
-      projectId: "1",
-      dueDate: "2024-02-20",
-      createdAt: "2024-01-25",
-    },
-    {
-      id: "4",
-      title: language === "en" ? "Write API documentation" : "Написать документацию API",
-      description: language === "en" ? "Document all endpoints" : "Задокументировать все эндпоинты",
-      status: "done",
-      priority: "low",
-      assignee: language === "en" ? "John Doe" : "Иван Петров",
-      project: language === "en" ? "API Integration" : "Интеграция API",
-      projectId: "3",
-      dueDate: "2024-02-05",
-      createdAt: "2024-01-15",
-    },
-    {
-      id: "5",
-      title: language === "en" ? "Fix navigation bugs" : "Исправить баги навигации",
-      description: language === "en" ? "Issues on iOS devices" : "Проблемы на iOS устройствах",
-      status: "in-progress",
-      priority: "urgent",
-      assignee: language === "en" ? "Jane Smith" : "Мария Сидорова",
-      project: language === "en" ? "Mobile App Development" : "Разработка мобильного приложения",
-      projectId: "1",
-      dueDate: "2024-02-08",
-      createdAt: "2024-01-28",
-    },
-    {
-      id: "6",
-      title: language === "en" ? "Security audit review" : "Проверка аудита безопасности",
-      description: language === "en" ? "Review findings and recommendations" : "Проверить результаты и рекомендации",
-      status: "todo",
-      priority: "medium",
-      assignee: language === "en" ? "Alex Johnson" : "Алексей Иванов",
-      project: language === "en" ? "Security Audit" : "Аудит безопасности",
-      projectId: "4",
-      dueDate: "2024-02-18",
-      createdAt: "2024-01-22",
-    },
-  ]);
-
-  const projects = [
-    { id: "1", name: language === "en" ? "Mobile App Development" : "Разработка мобильного приложения" },
-    { id: "2", name: language === "en" ? "Dashboard Redesign" : "Редизайн панели управления" },
-    { id: "3", name: language === "en" ? "API Integration" : "Интеграция API" },
-    { id: "4", name: language === "en" ? "Security Audit" : "Аудит безопасности" },
-  ];
-
-  const assignees = [
-    language === "en" ? "John Doe" : "Иван Петров",
-    language === "en" ? "Jane Smith" : "Мария Сидорова",
-    language === "en" ? "Alex Johnson" : "Алексей Иванов",
-  ];
+  useEffect(() => {
+    Promise.all([
+      apiTeams.tasks(teamId),
+      apiTeams.projects(teamId),
+      apiTeams.members(teamId),
+    ])
+      .then(([t, p, m]) => { setTasks(t); setProjects(p); setMembers(m); })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, [teamId]);
 
   const t = {
     tasks: language === "en" ? "Tasks" : "Задачи",
     subtitle: language === "en" ? "Manage team tasks and track progress" : "Управление задачами команды",
     createTask: language === "en" ? "Create Task" : "Создать задачу",
+    createTaskTitle: language === "en" ? "Create New Task" : "Создать новую задачу",
+    createTaskDesc: language === "en" ? "Add a task to the team" : "Добавить задачу в команду",
     search: language === "en" ? "Search tasks..." : "Поиск задач...",
-    filterAll: language === "en" ? "All Projects" : "Все проекты",
-    filterAllAssignees: language === "en" ? "All Members" : "Все участники",
+    filterAll: language === "en" ? "All Statuses" : "Все статусы",
     kanbanView: language === "en" ? "Kanban" : "Канбан",
     listView: language === "en" ? "List" : "Список",
     priorityLow: language === "en" ? "Low" : "Низкий",
@@ -168,62 +61,97 @@ export function TeamTasks({ teamId }: TeamTasksProps) {
     noTasks: language === "en" ? "No tasks found" : "Задачи не найдены",
     createFirst: language === "en" ? "Create your first task" : "Создайте первую задачу",
     taskMoved: language === "en" ? "Task moved successfully" : "Задача успешно перемещена",
-  };
-
-  const handleTaskMove = (taskId: string, newStatus: Task["status"]) => {
-    setTasksState(prevTasks =>
-      prevTasks.map(task =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
-    );
-    toast.success(t.taskMoved);
-  };
-
-  const handleTaskDelete = (taskId: string) => {
-    setTasksState(prevTasks => prevTasks.filter(task => task.id !== taskId));
-    toast.success(language === "en" ? "Task deleted" : "Задача удалена");
+    taskCreated: language === "en" ? "Task created" : "Задача создана",
+    taskDeleted: language === "en" ? "Task deleted" : "Задача удалена",
+    // form labels
+    titleLabel: language === "en" ? "Title" : "Название",
+    descLabel: language === "en" ? "Description" : "Описание",
+    projectLabel: language === "en" ? "Project" : "Проект",
+    assigneeLabel: language === "en" ? "Assignee" : "Исполнитель",
+    priorityLabel: language === "en" ? "Priority" : "Приоритет",
+    dueDateLabel: language === "en" ? "Due Date" : "Срок",
+    statusLabel: language === "en" ? "Status" : "Статус",
+    noProject: language === "en" ? "No project" : "Без проекта",
+    noAssignee: language === "en" ? "No assignee" : "Без исполнителя",
+    create: language === "en" ? "Create" : "Создать",
+    cancel: language === "en" ? "Cancel" : "Отмена",
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "urgent":
-        return "bg-red-500/10 text-red-600 border-red-500/20";
-      case "high":
-        return "bg-orange-500/10 text-orange-600 border-orange-500/20";
-      case "medium":
-        return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
-      case "low":
-        return "bg-blue-500/10 text-blue-600 border-blue-500/20";
-      default:
-        return "bg-gray-500/10 text-gray-600 border-gray-500/20";
+      case "urgent": return "bg-red-500/10 text-red-600 border-red-500/20";
+      case "high": return "bg-orange-500/10 text-orange-600 border-orange-500/20";
+      case "medium": return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
+      default: return "bg-blue-500/10 text-blue-600 border-blue-500/20";
     }
   };
 
   const getPriorityText = (priority: string) => {
     switch (priority) {
-      case "urgent":
-        return t.priorityUrgent;
-      case "high":
-        return t.priorityHigh;
-      case "medium":
-        return t.priorityMedium;
-      case "low":
-        return t.priorityLow;
-      default:
-        return priority;
+      case "urgent": return t.priorityUrgent;
+      case "high": return t.priorityHigh;
+      case "medium": return t.priorityMedium;
+      default: return t.priorityLow;
     }
   };
 
-  const filteredTasks = tasksState.filter(task => {
-    const matchesSearch = 
+  const handleTaskMove = async (taskId: string, newStatus: TeamTask["status"]) => {
+    try {
+      const updated = await apiTeams.updateTask(taskId, { status: newStatus });
+      setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+      toast.success(t.taskMoved);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  const handleTaskDelete = async (taskId: string) => {
+    try {
+      await apiTeams.deleteTask(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      toast.success(t.taskDeleted);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const projectId = fd.get("project_id") as string;
+    const assigneeId = fd.get("assignee_id") as string;
+    const dueDate = fd.get("due_date") as string;
+    setCreating(true);
+    try {
+      const created = await apiTeams.createTask(teamId, {
+        title: fd.get("title") as string,
+        description: (fd.get("description") as string) || undefined,
+        project_id: projectId && projectId !== "__none__" ? projectId : undefined,
+        assignee_id: assigneeId && assigneeId !== "__none__" ? assigneeId : undefined,
+        priority: fd.get("priority") as TeamTask["priority"],
+        status: fd.get("status") as TeamTask["status"],
+        due_date: dueDate || undefined,
+      });
+      setTasks(prev => [created, ...prev]);
+      setIsCreateOpen(false);
+      (e.target as HTMLFormElement).reset();
+      toast.success(t.taskCreated);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch =
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesProject = filterProject === "all" || task.projectId === filterProject;
-    const matchesAssignee = filterAssignee === "all" || task.assignee === filterAssignee;
-    return matchesSearch && matchesProject && matchesAssignee;
+      (task.description ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = filterStatus === "all" || task.status === filterStatus;
+    return matchesSearch && matchesStatus;
   });
 
-  const renderTaskCard = (task: Task) => (
+  const renderTaskCard = (task: TeamTask) => (
     <Card key={task.id} className="p-4 hover:shadow-md transition-all cursor-pointer">
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -235,108 +163,81 @@ export function TeamTasks({ teamId }: TeamTasksProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Eye className="h-4 w-4 mr-2" />
-                {t.view}
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Edit className="h-4 w-4 mr-2" />
-                {t.edit}
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="text-red-600"
-                onClick={() => handleTaskDelete(task.id)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t.delete}
+              <DropdownMenuItem><Eye className="h-4 w-4 mr-2" />{t.view}</DropdownMenuItem>
+              <DropdownMenuItem><Edit className="h-4 w-4 mr-2" />{t.edit}</DropdownMenuItem>
+              <DropdownMenuItem className="text-red-600" onClick={() => handleTaskDelete(task.id)}>
+                <Trash2 className="h-4 w-4 mr-2" />{t.delete}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-
-        <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
-
+        {task.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Badge className={`${getPriorityColor(task.priority)} border text-xs`}>
             {getPriorityText(task.priority)}
           </Badge>
-          <Badge variant="outline" className="text-xs">{task.project}</Badge>
+          {task.project_title && (
+            <Badge variant="outline" className="text-xs">{task.project_title}</Badge>
+          )}
         </div>
-
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
           <div className="flex items-center gap-1">
             <User className="h-3 w-3" />
-            <span className="truncate">{task.assignee}</span>
+            <span className="truncate">{task.assignee_name ?? "—"}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            <span>{task.dueDate}</span>
-          </div>
+          {task.due_date && (
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span>{task.due_date}</span>
+            </div>
+          )}
         </div>
       </div>
     </Card>
   );
 
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold flex items-center gap-2">
-          <CheckSquare className="h-6 w-6" />
-          {t.tasks}
+          <CheckSquare className="h-6 w-6" />{t.tasks}
         </h2>
         <p className="text-muted-foreground mt-1">{t.subtitle}</p>
       </div>
 
-      {/* Actions Bar */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={t.search}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+            <Input placeholder={t.search} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
           </div>
-          <Select value={filterProject} onValueChange={setFilterProject}>
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue />
-            </SelectTrigger>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t.filterAll}</SelectItem>
-              {projects.map(project => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t.filterAllAssignees}</SelectItem>
-              {assignees.map(assignee => (
-                <SelectItem key={assignee} value={assignee}>
-                  {assignee}
-                </SelectItem>
-              ))}
+              <SelectItem value="todo">{language === "en" ? "To Do" : "К выполнению"}</SelectItem>
+              <SelectItem value="in-progress">{language === "en" ? "In Progress" : "В работе"}</SelectItem>
+              <SelectItem value="review">{language === "en" ? "Review" : "На проверке"}</SelectItem>
+              <SelectItem value="done">{language === "en" ? "Done" : "Готово"}</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        
-        <Button 
+        <Button
+          onClick={() => setIsCreateOpen(true)}
           className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-xl transition-all w-full lg:w-auto"
         >
-          <Plus className="h-4 w-4 mr-2" />
-          {t.createTask}
+          <Plus className="h-4 w-4 mr-2" />{t.createTask}
         </Button>
       </div>
 
-      {/* View Toggle */}
       <div className="flex items-center gap-2 p-1 bg-muted rounded-lg w-fit">
         <Button
           variant={view === "kanban" ? "default" : "ghost"}
@@ -344,8 +245,7 @@ export function TeamTasks({ teamId }: TeamTasksProps) {
           onClick={() => setView("kanban")}
           className={view === "kanban" ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white" : ""}
         >
-          <LayoutGrid className="h-4 w-4 mr-2" />
-          {t.kanbanView}
+          <LayoutGrid className="h-4 w-4 mr-2" />{t.kanbanView}
         </Button>
         <Button
           variant={view === "list" ? "default" : "ghost"}
@@ -353,12 +253,10 @@ export function TeamTasks({ teamId }: TeamTasksProps) {
           onClick={() => setView("list")}
           className={view === "list" ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white" : ""}
         >
-          <LayoutList className="h-4 w-4 mr-2" />
-          {t.listView}
+          <LayoutList className="h-4 w-4 mr-2" />{t.listView}
         </Button>
       </div>
 
-      {/* Content */}
       <div className="mt-6">
         {view === "kanban" ? (
           <KanbanBoard
@@ -382,6 +280,98 @@ export function TeamTasks({ teamId }: TeamTasksProps) {
           </div>
         )}
       </div>
+
+      {/* Create Task Dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t.createTaskTitle}</DialogTitle>
+            <DialogDescription>{t.createTaskDesc}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateTask} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-title">{t.titleLabel}</Label>
+              <Input
+                id="task-title"
+                name="title"
+                required
+                placeholder={language === "en" ? "Fix login bug" : "Исправить баг авторизации"}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-desc">{t.descLabel}</Label>
+              <Textarea id="task-desc" name="description" rows={3} placeholder={language === "en" ? "Task details..." : "Детали задачи..."} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t.projectLabel}</Label>
+                <Select name="project_id" defaultValue="__none__">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t.noProject}</SelectItem>
+                    {projects.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t.assigneeLabel}</Label>
+                <Select name="assignee_id" defaultValue="__none__">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t.noAssignee}</SelectItem>
+                    {members.map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t.priorityLabel}</Label>
+                <Select name="priority" defaultValue="medium">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">{t.priorityLow}</SelectItem>
+                    <SelectItem value="medium">{t.priorityMedium}</SelectItem>
+                    <SelectItem value="high">{t.priorityHigh}</SelectItem>
+                    <SelectItem value="urgent">{t.priorityUrgent}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t.statusLabel}</Label>
+                <Select name="status" defaultValue="todo">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todo">{language === "en" ? "To Do" : "К выполнению"}</SelectItem>
+                    <SelectItem value="in-progress">{language === "en" ? "In Progress" : "В работе"}</SelectItem>
+                    <SelectItem value="review">{language === "en" ? "Review" : "На проверке"}</SelectItem>
+                    <SelectItem value="done">{language === "en" ? "Done" : "Готово"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-due">{t.dueDateLabel}</Label>
+              <Input id="task-due" name="due_date" type="date" />
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>{t.cancel}</Button>
+              <Button
+                type="submit"
+                disabled={creating}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                {t.create}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
