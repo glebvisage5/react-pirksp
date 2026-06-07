@@ -1,7 +1,7 @@
 databases:
   - name: educrm-postgres
     databaseName: educrm
-    user: postgres
+    user: educrm_user
     plan: free
     region: frankfurt
 
