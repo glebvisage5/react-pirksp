@@ -197,9 +197,11 @@ export async function updateTeamTask(taskId: string, data: Record<string, unknow
     "SELECT team_id, assignee_id FROM team_tasks WHERE id = $1", [taskId]
   );
   if (!task) throw new AppError(404, "Task not found");
-  const role = await getMemberRole(task.team_id, userId);
-  const isAssignee = task.assignee_id === userId;
-  if (!role && !isAssignee) throw new AppError(403, "Forbidden");
+  if (!await isSystemAdmin(userId)) {
+    const role = await getMemberRole(task.team_id, userId);
+    const isAssignee = task.assignee_id === userId;
+    if (!role && !isAssignee) throw new AppError(403, "Forbidden");
+  }
   const allowed = ["title", "description", "status", "priority", "assignee_id", "due_date", "project_id"];
   const fields: string[] = []; const values: unknown[] = []; let idx = 1;
   for (const k of allowed) { if (data[k] !== undefined) { fields.push(`${k} = $${idx++}`); values.push(data[k]); } }
@@ -310,10 +312,12 @@ export async function deleteFile(fileId: string, userId: string) {
     "SELECT uploaded_by, context_id FROM files WHERE id = $1", [fileId]
   );
   if (!file) throw new AppError(404, "File not found");
-  const role = await getMemberRole(file.context_id, userId);
-  const isUploader = file.uploaded_by === userId;
-  if (!isUploader && !["Team Leader", "Moderator"].includes(role ?? "")) {
-    throw new AppError(403, "Forbidden");
+  if (!await isSystemAdmin(userId)) {
+    const role = await getMemberRole(file.context_id, userId);
+    const isUploader = file.uploaded_by === userId;
+    if (!isUploader && !["Team Leader", "Moderator"].includes(role ?? "")) {
+      throw new AppError(403, "Forbidden");
+    }
   }
   await query("DELETE FROM files WHERE id = $1", [fileId]);
 }
