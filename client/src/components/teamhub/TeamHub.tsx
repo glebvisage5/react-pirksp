@@ -49,21 +49,11 @@ import { TeamFiles } from "./team-views/TeamFiles";
 import { TeamChat } from "./team-views/TeamChat";
 import { TeamRoles } from "./team-views/TeamRoles";
 import { TeamSettings } from "./team-views/TeamSettings";
+import { type Team } from "../../api/teams";
 
 type MainView = "dashboard" | "teams" | "deadlines" | "profile" | "settings";
 type TeamView = "overview" | "projects" | "specs" | "tasks" | "members" | "files" | "chat" | "roles" | "team-settings";
 type AdminTeamHubView = "admin-dashboard" | "admin-teams" | "admin-members" | "admin-roles" | "admin-projects" | "admin-tasks" | "admin-specs" | "admin-files" | "admin-settings";
-
-interface Team {
-  id: string;
-  name: string;
-  description: string;
-  owner: string;
-  role: "Team Leader" | "Moderator" | "Member" | "Viewer";
-  members: number;
-  projects: number;
-  createdAt: string;
-}
 
 interface NavItem {
   id: MainView;
@@ -161,8 +151,9 @@ export function TeamHub({ onBackToServices, onLogout }: TeamHubProps) {
 
   const getVisibleTeamNavItems = () => {
     if (!selectedTeam) return [];
-    return teamNavItems.filter(item => 
-      item.showForAll || (item.roles && item.roles.includes(selectedTeam.role))
+    console.log("[TeamHub] selectedTeam.user_role =", selectedTeam.user_role);
+    return teamNavItems.filter(item =>
+      item.showForAll || (item.roles && item.roles.includes(selectedTeam.user_role))
     );
   };
 
@@ -209,7 +200,7 @@ export function TeamHub({ onBackToServices, onLogout }: TeamHubProps) {
         case "files":
           return <TeamFiles teamId={selectedTeam.id} />;
         case "chat":
-          return <TeamChat teamId={selectedTeam.id} userRole={selectedTeam.role} />;
+          return <TeamChat teamId={selectedTeam.id} userRole={selectedTeam.user_role} />;
         case "roles":
           return <TeamRoles teamId={selectedTeam.id} />;
         case "team-settings":
@@ -266,9 +257,9 @@ export function TeamHub({ onBackToServices, onLogout }: TeamHubProps) {
                 <span className="text-xs text-muted-foreground">{t.mode}:</span>
                 <Switch
                   checked={teamHubMode === "admin"}
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={(checked: boolean) => {
                     setTeamHubMode(checked ? "admin" : "user");
-                    setSelectedTeam(null); // Reset team selection when switching modes
+                    setSelectedTeam(null);
                   }}
                   className="data-[state=checked]:bg-red-600"
                 />
@@ -325,7 +316,7 @@ export function TeamHub({ onBackToServices, onLogout }: TeamHubProps) {
                   <Switch
                     id="admin-mode-mobile-teamhub"
                     checked={teamHubMode === "admin"}
-                    onCheckedChange={(checked) => {
+                    onCheckedChange={(checked: boolean) => {
                       setTeamHubMode(checked ? "admin" : "user");
                       setSelectedTeam(null);
                     }}

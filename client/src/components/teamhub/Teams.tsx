@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiTeams, type Team as ApiTeam } from "../../api/teams";
+import { toast } from "sonner@2.0.3";
+import { Loader2 } from "lucide-react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -42,16 +45,7 @@ import {
 } from "../ui/select";
 
 
-interface Team {
-  id: string;
-  name: string;
-  description: string;
-  owner: string;
-  role: "Team Leader" | "Moderator" | "Member" | "Viewer";
-  members: number;
-  projects: number;
-  createdAt: string;
-}
+type Team = ApiTeam;
 
 interface TeamsProps {
   onTeamSelect: (team: Team) => void;
@@ -61,39 +55,15 @@ export function Teams({ onTeamSelect }: TeamsProps) {
   const { language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [teams, setTeams] = useState<Team[]>([
-    {
-      id: "1",
-      name: "Mobile Dev Team",
-      description: "Команда разработки мобильных приложений",
-      owner: "Иван Петров",
-      role: "Team Leader",
-      members: 8,
-      projects: 3,
-      createdAt: "2024-01-15",
-    },
-    {
-      id: "2",
-      name: "Design Team",
-      description: "Команда дизайнеров UI/UX",
-      owner: "Мария Сидорова",
-      role: "Moderator",
-      members: 5,
-      projects: 2,
-      createdAt: "2024-02-01",
-    },
-    {
-      id: "3",
-      name: "Backend Team",
-      description: "Серверная разработка и API",
-      owner: "Алексей Иванов",
-      role: "Member",
-      members: 6,
-      projects: 4,
-      createdAt: "2024-01-20",
-    },
-  ]);
+  useEffect(() => {
+    apiTeams.list()
+      .then(setTeams)
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, []);
 
   const t = {
     teams: language === "en" ? "Teams" : "Команды",
@@ -151,26 +121,24 @@ export function Teams({ onTeamSelect }: TeamsProps) {
     }
   };
 
-  const filteredTeams = teams.filter(team => 
+  const filteredTeams = teams.filter(team =>
     team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    team.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (team.description ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleCreateTeam = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateTeam = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const newTeam: Team = {
-      id: String(teams.length + 1),
-      name: formData.get("name") as string,
-      description: formData.get("description") as string,
-      owner: "Вы",
-      role: "Team Leader",
-      members: 1,
-      projects: 0,
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    setTeams([newTeam, ...teams]);
-    setIsCreateDialogOpen(false);
+    try {
+      const created = await apiTeams.create({
+        name: formData.get("name") as string,
+        description: formData.get("description") as string,
+      });
+      setTeams(prev => [created, ...prev]);
+      setIsCreateDialogOpen(false);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Ошибка создания команды");
+    }
   };
 
   const handleOpenTeam = (team: Team) => {
@@ -271,7 +239,7 @@ export function Teams({ onTeamSelect }: TeamsProps) {
                         <Eye className="h-4 w-4 mr-2" />
                         {t.viewTeam}
                       </DropdownMenuItem>
-                      {team.role === "Team Leader" && (
+                      {team.user_role === "Team Leader" && (
                         <>
                           <DropdownMenuItem onClick={() => handleOpenTeam(team)}>
                             <Settings className="h-4 w-4 mr-2" />
@@ -283,7 +251,7 @@ export function Teams({ onTeamSelect }: TeamsProps) {
                           </DropdownMenuItem>
                         </>
                       )}
-                      {team.role !== "Team Leader" && (
+                      {team.user_role !== "Team Leader" && (
                         <DropdownMenuItem className="text-red-600">
                           <Trash2 className="h-4 w-4 mr-2" />
                           {t.leave}
@@ -295,12 +263,12 @@ export function Teams({ onTeamSelect }: TeamsProps) {
 
                 {/* Role Badge */}
                 <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getRoleColor(team.role)} flex items-center justify-center text-white`}>
-                    {getRoleIcon(team.role)}
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getRoleColor(team.user_role)} flex items-center justify-center text-white`}>
+                    {getRoleIcon(team.user_role)}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">{t.role}</p>
-                    <p className="text-sm font-medium">{team.role}</p>
+                    <p className="text-sm font-medium">{team.user_role}</p>
                   </div>
                 </div>
 
@@ -309,19 +277,19 @@ export function Teams({ onTeamSelect }: TeamsProps) {
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">
-                      {team.members} {t.members.toLowerCase()}
+                      {team.member_count} {t.members.toLowerCase()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">
-                      {team.projects} {t.projects.toLowerCase()}
+                      {team.project_count} {t.projects.toLowerCase()}
                     </Badge>
                   </div>
                 </div>
 
                 {/* Owner */}
                 <p className="text-xs text-muted-foreground">
-                  {language === "en" ? "Owner: " : "Владелец: "}{team.owner}
+                  {language === "en" ? "Owner: " : "Владелец: "}{team.owner_name}
                 </p>
               </div>
             </Card>

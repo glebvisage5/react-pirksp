@@ -1,17 +1,9 @@
+import { useState, useEffect } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { useLanguage } from "../../lib/language-context";
-import { 
-  Users, 
-  FolderKanban, 
-  CheckSquare, 
-  FileText, 
-  TrendingUp, 
-  Calendar,
-  Clock,
-  Award
-} from "lucide-react";
-import { Badge } from "../ui/badge";
+import { Users, FolderKanban, CheckSquare, FileText, Clock, Award, Loader2 } from "lucide-react";
+import { apiTeams, type Team } from "../../api/teams";
 
 type MainView = "dashboard" | "teams" | "deadlines" | "profile" | "settings";
 
@@ -21,88 +13,52 @@ interface TeamHubDashboardProps {
 
 export function TeamHubDashboard({ onNavigate }: TeamHubDashboardProps) {
   const { language } = useLanguage();
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiTeams.list()
+      .then(setTeams)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalProjects = teams.reduce((sum, t) => sum + t.project_count, 0);
+  const totalMembers = teams.reduce((sum, t) => sum + t.member_count, 0);
 
   const t = {
     welcome: language === "en" ? "Welcome to TeamHub" : "Добро пожаловать в TeamHub",
     subtitle: language === "en" ? "Manage your teams, projects, and technical specifications" : "Управляйте командами, проектами и техническими заданиями",
     quickStats: language === "en" ? "Quick Stats" : "Быстрая статистика",
     myTeams: language === "en" ? "My Teams" : "Мои команды",
-    activeProjects: language === "en" ? "Active Projects" : "Активные проекты",
-    tasksInProgress: language === "en" ? "Tasks in Progress" : "Задачи в работе",
-    specifications: language === "en" ? "Specifications" : "Технические задания",
-    recentActivity: language === "en" ? "Recent Activity" : "Недавняя активность",
-    viewAll: language === "en" ? "View All" : "Смотреть всё",
+    totalProjects: language === "en" ? "Total Projects" : "Всего проектов",
+    totalMembers: language === "en" ? "Total Members" : "Всего участников",
     quickActions: language === "en" ? "Quick Actions" : "Быстрые действия",
     createTeam: language === "en" ? "Create Team" : "Создать команду",
-    newProject: language === "en" ? "New Project" : "Новый проект",
-    buildSpec: language === "en" ? "Build Spec" : "Создать ТЗ",
-    inviteMembers: language === "en" ? "Invite Members" : "Пригласить участников",
+    viewDeadlines: language === "en" ? "View Deadlines" : "Смотреть дедлайны",
+    myProfile: language === "en" ? "My Profile" : "Мой профиль",
+    settings: language === "en" ? "Settings" : "Настройки",
+    recentTeams: language === "en" ? "Recent Teams" : "Последние команды",
+    viewAll: language === "en" ? "View All" : "Смотреть всё",
+    noTeams: language === "en" ? "No teams yet" : "Команд пока нет",
   };
 
   const stats = [
-    { icon: <Users className="h-8 w-8" />, label: t.myTeams, value: "3", color: "from-emerald-500 to-teal-600" },
-    { icon: <FolderKanban className="h-8 w-8" />, label: t.activeProjects, value: "8", color: "from-blue-500 to-cyan-600" },
-    { icon: <CheckSquare className="h-8 w-8" />, label: t.tasksInProgress, value: "24", color: "from-purple-500 to-indigo-600" },
-    { icon: <FileText className="h-8 w-8" />, label: t.specifications, value: "12", color: "from-orange-500 to-red-600" },
-  ];
-
-  const recentActivities = [
-    {
-      id: 1,
-      type: "spec",
-      title: language === "en" ? "Mobile App Specification v2.0 created" : "Создано ТЗ для мобильного приложения v2.0",
-      team: "Mobile Dev Team",
-      time: language === "en" ? "2 hours ago" : "2 часа назад",
-      badge: language === "en" ? "New" : "Новое",
-    },
-    {
-      id: 2,
-      type: "project",
-      title: language === "en" ? "Website Redesign project updated" : "Обновлён проект редизайна сайта",
-      team: "Design Team",
-      time: language === "en" ? "5 hours ago" : "5 часов назад",
-      badge: language === "en" ? "Updated" : "Обновлено",
-    },
-    {
-      id: 3,
-      type: "task",
-      title: language === "en" ? "15 tasks completed this week" : "15 задач выполнено на этой неделе",
-      team: "All Teams",
-      time: language === "en" ? "1 day ago" : "1 день назад",
-      badge: language === "en" ? "Achievement" : "Достижение",
-    },
+    { icon: <Users className="h-8 w-8" />, label: t.myTeams, value: String(teams.length), color: "from-emerald-500 to-teal-600" },
+    { icon: <FolderKanban className="h-8 w-8" />, label: t.totalProjects, value: String(totalProjects), color: "from-blue-500 to-cyan-600" },
+    { icon: <CheckSquare className="h-8 w-8" />, label: t.totalMembers, value: String(totalMembers), color: "from-purple-500 to-indigo-600" },
+    { icon: <FileText className="h-8 w-8" />, label: language === "en" ? "Active" : "Активных", value: String(teams.filter(t => t.project_count > 0).length), color: "from-orange-500 to-red-600" },
   ];
 
   const quickActions = [
-    { 
-      icon: <Users className="h-5 w-5" />, 
-      label: t.createTeam, 
-      color: "from-emerald-500 to-teal-600",
-      action: () => onNavigate("teams")
-    },
-    { 
-      icon: <Clock className="h-5 w-5" />, 
-      label: language === "en" ? "View Deadlines" : "Смотреть дедлайны", 
-      color: "from-blue-500 to-cyan-600",
-      action: () => onNavigate("deadlines")
-    },
-    { 
-      icon: <Users className="h-5 w-5" />, 
-      label: language === "en" ? "My Profile" : "Мой профиль", 
-      color: "from-purple-500 to-indigo-600",
-      action: () => onNavigate("profile")
-    },
-    { 
-      icon: <Award className="h-5 w-5" />, 
-      label: language === "en" ? "Settings" : "Настройки", 
-      color: "from-orange-500 to-red-600",
-      action: () => onNavigate("settings")
-    },
+    { icon: <Users className="h-5 w-5" />, label: t.createTeam, color: "from-emerald-500 to-teal-600", action: () => onNavigate("teams") },
+    { icon: <Clock className="h-5 w-5" />, label: t.viewDeadlines, color: "from-blue-500 to-cyan-600", action: () => onNavigate("deadlines") },
+    { icon: <Users className="h-5 w-5" />, label: t.myProfile, color: "from-purple-500 to-indigo-600", action: () => onNavigate("profile") },
+    { icon: <Award className="h-5 w-5" />, label: t.settings, color: "from-orange-500 to-red-600", action: () => onNavigate("settings") },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
       <div>
         <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
           {t.welcome}
@@ -113,21 +69,27 @@ export function TeamHubDashboard({ onNavigate }: TeamHubDashboardProps) {
       {/* Quick Stats */}
       <div>
         <h2 className="text-xl font-semibold mb-4">{t.quickStats}</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat, index) => (
-            <Card key={index} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-white shadow-lg`}>
-                  {stat.icon}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {stats.map((stat, index) => (
+              <Card key={index} className="p-6 hover:shadow-lg transition-shadow">
+                <div className="flex items-center gap-4">
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-white shadow-lg`}>
+                    {stat.icon}
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                    <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -150,45 +112,42 @@ export function TeamHubDashboard({ onNavigate }: TeamHubDashboardProps) {
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Recent Teams */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">{t.recentActivity}</h2>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-emerald-600 hover:text-emerald-700"
-            onClick={() => onNavigate("teams")}
-          >
+          <h2 className="text-xl font-semibold">{t.recentTeams}</h2>
+          <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => onNavigate("teams")}>
             {t.viewAll}
           </Button>
         </div>
-        <Card className="divide-y">
-          {recentActivities.map((activity) => (
-            <div key={activity.id} className="p-4 hover:bg-muted/50 transition-colors">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium">{activity.title}</p>
-                    <Badge variant="secondary" className="text-xs">
-                      {activity.badge}
-                    </Badge>
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : teams.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {teams.slice(0, 3).map(team => (
+              <Card key={team.id} className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => onNavigate("teams")}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow">
+                    <Users className="h-5 w-5" />
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {activity.team}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {activity.time}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{team.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {team.member_count} {language === "en" ? "members" : "участников"} · {team.project_count} {language === "en" ? "projects" : "проектов"}
+                    </p>
                   </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </Card>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="p-8 text-center text-muted-foreground">
+            <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
+            <p>{t.noTeams}</p>
+          </Card>
+        )}
       </div>
     </div>
   );

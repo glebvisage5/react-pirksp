@@ -1,0 +1,45 @@
+databases:
+  - name: educrm-postgres
+    databaseName: educrm
+    user: postgres
+    plan: free
+    region: frankfurt
+
+services:
+  - type: web
+    name: educrm-server
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: educrm-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: PORT
+        value: "4000"
+      - key: NODE_ENV
+        value: production
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: CLIENT_URL
+        value: https://educrm-client.onrender.com
+
+  - type: web
+    name: educrm-client
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./client/Dockerfile.prod
+    dockerContext: ./client
+    envVars:
+      - key: VITE_API_URL
+        value: https://educrm-server.onrender.com

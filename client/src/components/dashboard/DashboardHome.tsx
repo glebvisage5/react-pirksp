@@ -1,57 +1,65 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Progress } from "../ui/progress";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Calendar, Trophy, Clock, TrendingUp, CheckCircle, AlertCircle } from "lucide-react";
+import { Calendar, Trophy, Clock, TrendingUp, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useLanguage } from "../../lib/language-context";
+import { useUser } from "../../lib/user-context";
+import { apiTasks, type UserTask, type UserStats } from "../../api/tasks";
+import { apiCourses, type Course } from "../../api/courses";
 
 interface TaskCardProps {
-  id: string;
-  title: string;
-  course: string;
-  dueDate: string;
-  progress: number;
-  status: "completed" | "in-progress" | "pending";
+  task: UserTask;
   onClick: (id: string) => void;
-  language: "en" | "ru";
+  language: string;
 }
 
-const TaskCard = ({ id, title, course, dueDate, progress, status, onClick, language }: TaskCardProps) => {
-  const statusLabels = {
-    completed: language === "en" ? "Completed" : "Завершено",
+const TaskCard = ({ task, onClick, language }: TaskCardProps) => {
+  const statusLabels: Record<string, string> = {
+    done: language === "en" ? "Completed" : "Завершено",
     "in-progress": language === "en" ? "In Progress" : "В процессе",
-    pending: language === "en" ? "Pending" : "Ожидает"
+    todo: language === "en" ? "Pending" : "Ожидает",
+    review: language === "en" ? "Review" : "На проверке",
   };
 
   const getStatusColor = () => {
-    switch (status) {
-      case "completed": return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-500";
+    switch (task.status) {
+      case "done": return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-500";
       case "in-progress": return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-500";
-      case "pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-500";
+      case "review": return "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-500";
+      default: return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-500";
     }
   };
 
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return language === "en" ? "No deadline" : "Без срока";
+    return new Date(dateStr).toLocaleDateString(language === "en" ? "en-US" : "ru-RU", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  };
+
   return (
-    <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => onClick(id)}>
+    <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => onClick(task.id)}>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <h4 className="mb-1">{title}</h4>
-            <p className="text-sm text-muted-foreground">{course}</p>
+            <h4 className="mb-1">{task.title}</h4>
+            <p className="text-sm text-muted-foreground">{task.course_title ?? "—"}</p>
           </div>
           <Badge className={getStatusColor()} variant="secondary">
-            {statusLabels[status]}
+            {statusLabels[task.status] ?? task.status}
           </Badge>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{language === "en" ? "Progress" : "Прогресс"}</span>
-            <span>{progress}%</span>
+            <span>{task.progress}%</span>
           </div>
-          <Progress value={progress} />
+          <Progress value={task.progress} />
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span>{language === "en" ? "Due:" : "Срок:"} {dueDate}</span>
+            <span>{language === "en" ? "Due:" : "Срок:"} {formatDate(task.due_date)}</span>
           </div>
         </div>
       </CardContent>
@@ -65,60 +73,78 @@ interface Props {
 
 export function DashboardHome({ onTaskClick }: Props) {
   const { language } = useLanguage();
+  const { user } = useUser();
+
+  const [tasks, setTasks] = useState<UserTask[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    Promise.all([
+      apiTasks.list({ limit: 4 }),
+      apiCourses.enrolled(4),
+      apiTasks.stats(),
+    ])
+      .then(([t, c, s]) => {
+        setTasks(t);
+        setCourses(c);
+        setStats(s);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [user]);
 
   const t = {
     title: language === "en" ? "Dashboard Overview" : "Обзор дашборда",
     subtitle: language === "en" ? "Track your progress and stay on top of your tasks" : "Отслеживайте прогресс и контролируйте задачи",
-    taskProgress: language === "en" ? "Task Progress" : "Прогресс задач",
-    upcomingEvents: language === "en" ? "Upcoming Events" : "Предстоящие события",
-    leaderboard: language === "en" ? "Leaderboard" : "Рейтинг",
+    taskProgress: language === "en" ? "My Tasks" : "Мои задачи",
+    myCourses: language === "en" ? "My Courses" : "Мои курсы",
+    stats: language === "en" ? "Statistics" : "Статистика",
     upcomingDeadlines: language === "en" ? "Upcoming Deadlines" : "Предстоящие дедлайны",
-    academicPerformance: language === "en" ? "Academic Performance" : "Академическая успеваемость",
     viewAllTasks: language === "en" ? "View All Tasks" : "Все задачи",
-    viewFullCalendar: language === "en" ? "View Full Calendar" : "Полный календарь",
-    viewFullLeaderboard: language === "en" ? "View Full Leaderboard" : "Полный рейтинг",
-    viewAllDeadlines: language === "en" ? "View All Deadlines" : "Все дедлайны",
-    viewDetailedReport: language === "en" ? "View Detailed Report" : "Подробный отчет",
+    viewAllCourses: language === "en" ? "View All Courses" : "Все курсы",
     points: language === "en" ? "points" : "баллов",
-    overallGrade: language === "en" ? "Overall Grade" : "Общая оценка",
-    urgent: language === "en" ? "Urgent" : "Срочно"
+    overallProgress: language === "en" ? "Overall Progress" : "Общий прогресс",
+    tasksCompleted: language === "en" ? "Tasks Completed" : "Задач выполнено",
+    coursesEnrolled: language === "en" ? "Courses Enrolled" : "Курсов записано",
+    inProgress: language === "en" ? "In Progress" : "В процессе",
+    noTasks: language === "en" ? "No tasks assigned yet" : "Задачи ещё не назначены",
+    noCourses: language === "en" ? "No courses enrolled yet" : "Вы ещё не записаны на курсы",
+    urgent: language === "en" ? "Urgent" : "Срочно",
+    loading: language === "en" ? "Loading..." : "Загрузка...",
   };
 
-  const tasks = [
-    { id: "1", title: "React Assignment", course: "Web Development", dueDate: "Dec 10, 2024", progress: 75, status: "in-progress" as const },
-    { id: "2", title: "Database Project", course: "Data Science", dueDate: "Dec 8, 2024", progress: 100, status: "completed" as const },
-    { id: "3", title: "Marketing Case Study", course: "Digital Marketing", dueDate: "Dec 15, 2024", progress: 30, status: "in-progress" as const },
-    { id: "4", title: "Math Problem Set", course: "Advanced Mathematics", dueDate: "Dec 12, 2024", progress: 0, status: "pending" as const },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-3 text-muted-foreground">{t.loading}</span>
+      </div>
+    );
+  }
 
-  const upcomingEvents = [
-    { title: "Web Development Final", date: "Dec 18, 2024", time: "10:00 AM" },
-    { title: "Project Presentation", date: "Dec 20, 2024", time: "2:00 PM" },
-    { title: "Team Meeting", date: "Dec 5, 2024", time: "4:00 PM" },
-  ];
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64 text-destructive gap-2">
+        <AlertCircle className="h-5 w-5" />
+        <span>{error}</span>
+      </div>
+    );
+  }
 
-  const leaderboard = [
-    { rank: 1, name: "Sarah Johnson", points: 2450, avatar: "SJ" },
-    { rank: 2, name: "Michael Chen", points: 2380, avatar: "MC" },
-    { rank: 3, name: "Emma Davis", points: 2310, avatar: "ED" },
-    { rank: 4, name: "You", points: 2250, avatar: "ME", highlight: true },
-    { rank: 5, name: "James Wilson", points: 2180, avatar: "JW" },
-  ];
+  // Задачи с ближайшим дедлайном (есть дата + не done)
+  const upcomingDeadlines = tasks
+    .filter((t) => t.due_date && t.status !== "done")
+    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+    .slice(0, 3);
 
-  const deadlines = [
-    { task: "React Assignment", course: "Web Development", date: "Dec 10", urgent: false },
-    { task: "Marketing Case Study", course: "Digital Marketing", date: "Dec 15", urgent: false },
-    { task: "Database Project", course: "Data Science", date: "Dec 8", urgent: true },
-  ];
-
-  const performance = {
-    overall: 87,
-    courses: [
-      { name: "Web Development", grade: 92, color: "bg-blue-500" },
-      { name: "Data Science", grade: 88, color: "bg-green-500" },
-      { name: "Digital Marketing", grade: 85, color: "bg-purple-500" },
-      { name: "Mathematics", grade: 82, color: "bg-orange-500" },
-    ]
+  const isUrgent = (dateStr: string | null) => {
+    if (!dateStr) return false;
+    return (new Date(dateStr).getTime() - Date.now()) < 3 * 24 * 60 * 60 * 1000;
   };
 
   return (
@@ -128,9 +154,39 @@ export function DashboardHome({ onTaskClick }: Props) {
         <p className="text-muted-foreground">{t.subtitle}</p>
       </div>
 
+      {/* Stats row */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <div className="text-3xl font-bold">{stats.tasks_completed}</div>
+              <p className="text-sm text-muted-foreground mt-1">{t.tasksCompleted}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <div className="text-3xl font-bold">{stats.tasks_in_progress}</div>
+              <p className="text-sm text-muted-foreground mt-1">{t.inProgress}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <div className="text-3xl font-bold">{stats.courses_enrolled}</div>
+              <p className="text-sm text-muted-foreground mt-1">{t.coursesEnrolled}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <div className="text-3xl font-bold">{stats.overall_progress}%</div>
+              <p className="text-sm text-muted-foreground mt-1">{t.overallProgress}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Main Grid */}
       <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
-        {/* Task Progress - Takes 2 columns */}
+        {/* Tasks — 2 columns */}
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader>
@@ -140,151 +196,102 @@ export function DashboardHome({ onTaskClick }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                {tasks.map((task) => (
-                  <TaskCard key={task.id} {...task} onClick={onTaskClick} language={language} />
-                ))}
-              </div>
-              <Button variant="outline" className="w-full mt-4">
+              {tasks.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">{t.noTasks}</p>
+              ) : (
+                <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  {tasks.map((task) => (
+                    <TaskCard key={task.id} task={task} onClick={onTaskClick} language={language} />
+                  ))}
+                </div>
+              )}
+              <Button variant="outline" className="w-full mt-4" onClick={() => onTaskClick("")}>
                 {t.viewAllTasks}
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        {/* Calendar */}
+        {/* Deadlines sidebar */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-                {t.upcomingEvents}
+                <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                {t.upcomingDeadlines}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {upcomingEvents.map((event, index) => (
-                <div key={index} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                  <p className="font-medium text-sm sm:text-base">{event.title}</p>
-                  <div className="flex items-center gap-2 mt-1 text-xs sm:text-sm text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>{event.date}</span>
+              {upcomingDeadlines.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {language === "en" ? "No upcoming deadlines" : "Дедлайнов нет"}
+                </p>
+              ) : (
+                upcomingDeadlines.map((task) => (
+                  <div key={task.id} className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => onTaskClick(task.id)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{task.title}</p>
+                        <p className="text-xs text-muted-foreground">{task.course_title ?? "—"}</p>
+                      </div>
+                      {isUrgent(task.due_date) && (
+                        <Badge variant="destructive" className="shrink-0 text-xs">{t.urgent}</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                      <Calendar className="h-3 w-3" />
+                      <span>{new Date(task.due_date!).toLocaleDateString(language === "en" ? "en-US" : "ru-RU", { day: "numeric", month: "short" })}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    <span>{event.time}</span>
-                  </div>
-                </div>
-              ))}
-              <Button variant="outline" className="w-full">
-                {t.viewFullCalendar}
-              </Button>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Secondary Grid */}
-      <div className="grid gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Leaderboard */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              {t.leaderboard}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {leaderboard.map((entry) => (
-              <div
-                key={entry.rank}
-                className={`flex items-center gap-3 p-2 rounded-lg ${
-                  entry.highlight ? "bg-primary/10 border border-primary/20" : ""
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                  entry.rank === 1 ? "bg-yellow-500 text-white" :
-                  entry.rank === 2 ? "bg-gray-400 text-white" :
-                  entry.rank === 3 ? "bg-orange-600 text-white" :
-                  "bg-muted text-muted-foreground"
-                }`}>
-                  {entry.rank}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{entry.name}</p>
-                  <p className="text-xs text-muted-foreground">{entry.points} {t.points}</p>
-                </div>
-              </div>
-            ))}
-            <Button variant="outline" className="w-full">
-              {t.viewFullLeaderboard}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Deadlines */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              {t.upcomingDeadlines}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {deadlines.map((deadline, index) => (
-              <div key={index} className="p-3 border rounded-lg">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{deadline.task}</p>
-                    <p className="text-xs text-muted-foreground">{deadline.course}</p>
+      {/* Courses */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            {t.myCourses}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {courses.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">{t.noCourses}</p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {courses.map((course) => (
+                <div key={course.id} className="p-4 border rounded-lg space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{course.thumbnail_emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{course.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{course.instructor_name ?? "—"}</p>
+                    </div>
                   </div>
-                  {deadline.urgent && (
-                    <Badge variant="destructive" className="shrink-0 text-xs">{t.urgent}</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">{deadline.date}</p>
-              </div>
-            ))}
-            <Button variant="outline" className="w-full">
-              {t.viewAllDeadlines}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Academic Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              {t.academicPerformance}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-4xl mb-1">{performance.overall}%</div>
-              <p className="text-sm text-muted-foreground">{t.overallGrade}</p>
-            </div>
-            <div className="space-y-3">
-              {performance.courses.map((course, index) => (
-                <div key={index} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="truncate">{course.name}</span>
-                    <span>{course.grade}%</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className={`${course.color} h-2 rounded-full`}
-                      style={{ width: `${course.grade}%` }}
-                    />
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{language === "en" ? "Progress" : "Прогресс"}</span>
+                      <span>{course.progress}%</span>
+                    </div>
+                    <Progress value={course.progress} className="h-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {course.completed_lessons}/{course.total_lessons} {language === "en" ? "lessons" : "уроков"}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
-            <Button variant="outline" className="w-full">
-              {t.viewDetailedReport}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+          <Button variant="outline" className="w-full mt-4">
+            {t.viewAllCourses}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
