@@ -42,6 +42,11 @@ export async function apiGetMe(): Promise<User> {
   return api.get<User>("/api/auth/me");
 }
 
+export async function apiSearchUsers(q: string): Promise<{ id: string; name: string; email: string }[]> {
+  if (q.trim().length < 2) return [];
+  return api.get(`/api/auth/users/search?q=${encodeURIComponent(q)}`);
+}
+
 function storeTokens(access: string, refresh: string): void {
   localStorage.setItem("access_token", access);
   localStorage.setItem("refresh_token", refresh);

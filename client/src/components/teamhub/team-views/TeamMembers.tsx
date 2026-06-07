@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../../ui/alert-dialog";
 import { apiTeams, type TeamMember } from "../../../api/teams";
+import { apiSearchUsers } from "../../../api/auth";
 
 interface TeamMembersProps {
   teamId: string;
@@ -30,6 +31,11 @@ export function TeamMembers({ teamId, userRole = "Team Leader" }: TeamMembersPro
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [newRole, setNewRole] = useState<string>("");
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [inviteRole, setInviteRole] = useState<TeamMember["role"]>("Member");
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     apiTeams.members(teamId)
@@ -98,16 +104,29 @@ export function TeamMembers({ teamId, userRole = "Team Leader" }: TeamMembersPro
     return matchesSearch && matchesRole;
   });
 
-  const handleAddMember = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const userId = fd.get("userId") as string;
-    const role = fd.get("role") as TeamMember["role"];
+  const handleUserSearch = async (q: string) => {
+    setUserSearchQuery(q);
+    setSelectedUser(null);
+    if (q.trim().length < 2) { setUserSearchResults([]); return; }
+    setSearching(true);
     try {
-      await apiTeams.addMember(teamId, userId, role);
+      const results = await apiSearchUsers(q);
+      setUserSearchResults(results);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!selectedUser) return;
+    try {
+      await apiTeams.addMember(teamId, selectedUser.id, inviteRole);
       const updated = await apiTeams.members(teamId);
       setMembers(updated);
       setIsInviteDialogOpen(false);
+      setSelectedUser(null);
+      setUserSearchQuery("");
+      setUserSearchResults([]);
       toast.success(language === "en" ? "Member added" : "Участник добавлен");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Error");
@@ -181,17 +200,55 @@ export function TeamMembers({ teamId, userRole = "Team Leader" }: TeamMembersPro
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{t.inviteTitle}</DialogTitle>
-                <DialogDescription>{language === "en" ? "Enter user UUID and role" : "Введите UUID пользователя и роль"}</DialogDescription>
+                <DialogTitle>{language === "en" ? "Add Member" : "Добавить участника"}</DialogTitle>
+                <DialogDescription>{language === "en" ? "Search by name or email" : "Поиск по имени или email"}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleAddMember} className="space-y-4">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="userId">{t.userId}</Label>
-                  <Input id="userId" name="userId" required placeholder="uuid..." />
+                  <Label>{language === "en" ? "Search user" : "Поиск пользователя"}</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      className="pl-10"
+                      placeholder={language === "en" ? "Name or email..." : "Имя или email..."}
+                      value={userSearchQuery}
+                      onChange={e => handleUserSearch(e.target.value)}
+                    />
+                    {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+                  </div>
+                  {userSearchResults.length > 0 && !selectedUser && (
+                    <div className="border rounded-lg overflow-hidden">
+                      {userSearchResults.map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-muted transition-colors border-b last:border-b-0"
+                          onClick={() => { setSelectedUser(u); setUserSearchQuery(u.name); setUserSearchResults([]); }}
+                        >
+                          <div className="font-medium text-sm">{u.name}</div>
+                          <div className="text-xs text-muted-foreground">{u.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {selectedUser && (
+                    <div className="flex items-center gap-2 p-2 bg-emerald-50 dark:bg-emerald-950 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                        {selectedUser.name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">{selectedUser.name}</div>
+                        <div className="text-xs text-muted-foreground">{selectedUser.email}</div>
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setSelectedUser(null); setUserSearchQuery(""); }}>
+                        ×
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>{t.selectRole}</Label>
-                  <Select name="role" defaultValue="Member">
+                  <Select value={inviteRole} onValueChange={v => setInviteRole(v as TeamMember["role"])}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Member">{t.member}</SelectItem>
@@ -201,12 +258,12 @@ export function TeamMembers({ teamId, userRole = "Team Leader" }: TeamMembersPro
                   </Select>
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={() => setIsInviteDialogOpen(false)}>{t.cancel}</Button>
-                  <Button type="submit" className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
-                    <Mail className="h-4 w-4 mr-2" />{t.add}
+                  <Button variant="outline" onClick={() => { setIsInviteDialogOpen(false); setSelectedUser(null); setUserSearchQuery(""); setUserSearchResults([]); }}>{t.cancel}</Button>
+                  <Button disabled={!selectedUser} onClick={handleAddMember} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
+                    <UserPlus className="h-4 w-4 mr-2" />{t.add}
                   </Button>
                 </div>
-              </form>
+              </div>
             </DialogContent>
           </Dialog>
         )}

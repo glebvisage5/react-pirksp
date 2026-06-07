@@ -76,4 +76,19 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
   }
 });
 
+router.get("/users/search", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const q = String(req.query["q"] ?? "").trim();
+    if (q.length < 2) { res.json([]); return; }
+    const { query } = await import("../../config/database");
+    const users = await query<{ id: string; name: string; email: string }>(
+      `SELECT id, name, email FROM users WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY name LIMIT 10`,
+      [`%${q}%`]
+    );
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
