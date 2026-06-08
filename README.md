@@ -1,6 +1,7 @@
 # EduCRM + TeamHub
 
 Full-stack SPA: React 18 + Vite + TypeScript (фронтенд), Node.js + Express + TypeScript (бэкенд), PostgreSQL 16 (база данных), Docker Compose.
+Проект представлен по адресу: https://educrm-client.onrender.com/
 
 ---
 
