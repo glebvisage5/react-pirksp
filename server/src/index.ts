@@ -11,6 +11,9 @@ import coursesRouter from "./modules/courses/courses.router";
 import tasksRouter from "./modules/tasks/tasks.router";
 import groupsRouter from "./modules/groups/groups.router";
 import teamsRouter from "./modules/teams/teams.router";
+import studyTeamsRouter from "./modules/study-teams/study-teams.router";
+import filesRouter from "./modules/files/files.router";
+import usersRouter from "./modules/users/users.router";
 
 const app = express();
 
@@ -42,6 +45,9 @@ app.use("/api/courses", coursesRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/groups", groupsRouter);
 app.use("/api/teams", teamsRouter);
+app.use("/api/study-teams", studyTeamsRouter);
+app.use("/api/files", filesRouter);
+app.use("/api/users", usersRouter);
 
 app.use(errorHandler);
 

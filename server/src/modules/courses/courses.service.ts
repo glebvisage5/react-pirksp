@@ -138,6 +138,31 @@ export async function createLesson(courseId: string, data: Record<string, unknow
   return lesson;
 }
 
+export async function updateLesson(lessonId: string, data: Record<string, unknown>) {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+  for (const [key, val] of Object.entries(data)) {
+    if (val !== undefined) {
+      fields.push(`${key} = $${idx++}`);
+      values.push(key === "content" ? JSON.stringify(val) : val);
+    }
+  }
+  if (fields.length === 0) throw new AppError(400, "Nothing to update");
+  values.push(lessonId);
+  const [lesson] = await query(
+    `UPDATE lessons SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+    values
+  );
+  if (!lesson) throw new AppError(404, "Lesson not found");
+  return lesson;
+}
+
+export async function deleteLesson(lessonId: string) {
+  const result = await query("DELETE FROM lessons WHERE id = $1 RETURNING id", [lessonId]);
+  if (result.length === 0) throw new AppError(404, "Lesson not found");
+}
+
 export async function completeLesson(lessonId: string, userId: string) {
   await query(`
     INSERT INTO user_lesson_progress (user_id, lesson_id, completed, completed_at)

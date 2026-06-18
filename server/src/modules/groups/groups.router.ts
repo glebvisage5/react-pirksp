@@ -15,6 +15,14 @@ const memberSchema = z.object({
   role: z.enum(["student", "elder"]).default("student"),
 });
 
+// GET /api/groups/my — моя группа и её участники
+router.get("/my", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const group = await svc.getMyGroup(req.user!.userId);
+    res.json(group);
+  } catch (err) { next(err); }
+});
+
 // GET /api/groups
 router.get("/", requireAuth, requireRole("admin"), async (req: Request, res: Response, next: NextFunction) => {
   try {

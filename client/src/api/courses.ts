@@ -37,5 +37,8 @@ export const apiCourses = {
   delete: (id: string) => api.delete(`/api/courses/${id}`),
   enroll: (id: string) => api.post(`/api/courses/${id}/enroll`, {}),
   lessons: (id: string) => api.get<Lesson[]>(`/api/courses/${id}/lessons`),
+  createLesson: (courseId: string, data: Partial<Lesson>) => api.post<Lesson>(`/api/courses/${courseId}/lessons`, data),
+  updateLesson: (lessonId: string, data: Partial<Lesson>) => api.put<Lesson>(`/api/courses/lessons/${lessonId}`, data),
+  deleteLesson: (lessonId: string) => api.delete(`/api/courses/lessons/${lessonId}`),
   completeLesson: (lessonId: string) => api.post(`/api/courses/lessons/${lessonId}/complete`, {}),
 };

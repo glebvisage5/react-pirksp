@@ -6,7 +6,6 @@ import {
 } from "./lib/language-context";
 import { UserProvider, useUser } from "./lib/user-context";
 import { CompanyHome } from "./components/company/CompanyHome";
-import { LandingPage } from "./components/LandingPage";
 import { DashboardHome } from "./components/dashboard/DashboardHome";
 import { TaskProgress } from "./components/dashboard/TaskProgress";
 import { Group } from "./components/dashboard/Group";
@@ -46,7 +45,6 @@ import {
   LogOut,
   BookOpen,
   ArrowLeft,
-  Home,
   Shield,
   UserCog,
   Database,
@@ -60,7 +58,6 @@ import { Toaster } from "./components/ui/sonner";
 
 type AppView =
   | "company"
-  | "landing"
   | "dashboard"
   | "admin-center"
   | "teamhub";
@@ -244,8 +241,6 @@ function AppContent() {
     adminDashboard:
       language === "en" ? "Admin Dashboard" : "Админ панель",
     logout: language === "en" ? "Logout" : "Выйти",
-    backToEduCRM:
-      language === "en" ? "EduCRM Home" : "EduCRM Главная",
     backToServices:
       language === "en" ? "All Services" : "Все сервисы",
     userMode:
@@ -263,18 +258,14 @@ function AppContent() {
 
   const handleServiceSelect = (serviceId: string) => {
     if (serviceId === "educrm") {
-      setAppView("landing");
+      setAppView("dashboard");
+      setDashboardView("home");
     } else if (serviceId === "admin-center") {
       setAppView("admin-center");
     } else if (serviceId === "teamhub") {
       setAppView("teamhub");
     }
     // Add other services navigation here when they are implemented
-  };
-
-  const handleGetStartedFromLanding = () => {
-    setAppView("dashboard");
-    setDashboardView("home");
   };
 
   const handleLogout = async () => {
@@ -286,10 +277,6 @@ function AppContent() {
 
   const handleBackToCompany = () => {
     setAppView("company");
-  };
-
-  const handleBackToLanding = () => {
-    setAppView("landing");
   };
 
   const handleTaskClick = (taskId: string) => {
@@ -362,17 +349,6 @@ function AppContent() {
     );
   }
 
-  // Landing Page EduCRM
-  if (appView === "landing") {
-    return (
-      <LandingPage
-        onGetStarted={handleGetStartedFromLanding}
-        onLogin={handleGetStartedFromLanding}
-        onBackToServices={handleBackToCompany}
-      />
-    );
-  }
-
   // Admin Center
   if (appView === "admin-center") {
     return (
@@ -438,17 +414,6 @@ function AppContent() {
 
               {/* Notifications */}
               <NotificationsDropdown />
-
-              {/* Back to EduCRM Home */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBackToLanding}
-                className="hidden lg:flex gap-2"
-              >
-                <Home className="h-4 w-4" />
-                {t.backToEduCRM}
-              </Button>
 
               {/* Back to All Services */}
               <Button
@@ -567,18 +532,6 @@ function AppContent() {
                   ))}
 
               <div className="pt-4 border-t mt-4 space-y-2">
-                {/* Back to EduCRM Home - visible on mobile */}
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start lg:hidden"
-                  onClick={() => {
-                    handleBackToLanding();
-                    setIsMobileMenuOpen(false);
-                  }}
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="ml-3">{t.backToEduCRM}</span>
-                </Button>
                 {/* Back to All Services - visible on mobile */}
                 <Button
                   variant="ghost"

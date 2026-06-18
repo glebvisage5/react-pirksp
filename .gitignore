@@ -8,3 +8,5 @@ client/tsconfig.tsbuildinfo
 .env
 CLAUDE.md
 PLAN.md
+/docs
+ROADMAP.md

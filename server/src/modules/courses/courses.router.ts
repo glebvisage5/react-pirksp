@@ -91,6 +91,22 @@ router.post("/:id/lessons", requireAuth, requireRole("admin"), async (req: Reque
   } catch (err) { next(err); }
 });
 
+// PUT /api/courses/lessons/:lessonId — только admin
+router.put("/lessons/:lessonId", requireAuth, requireRole("admin"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const lesson = await svc.updateLesson(req.params["lessonId"]!, req.body);
+    res.json(lesson);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/courses/lessons/:lessonId — только admin
+router.delete("/lessons/:lessonId", requireAuth, requireRole("admin"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await svc.deleteLesson(req.params["lessonId"]!);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // POST /api/lessons/:lessonId/complete
 router.post("/lessons/:lessonId/complete", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {

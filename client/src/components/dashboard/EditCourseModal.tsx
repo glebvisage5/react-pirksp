@@ -6,28 +6,28 @@ import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardHeader } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Switch } from "../ui/switch";
 import { useLanguage } from "../../lib/language-context";
-import { toast } from "sonner@2.0.3";
-import { 
-  Plus, 
-  Trash2, 
-  GripVertical, 
-  Video, 
-  Code, 
-  FileQuestion, 
+import { toast } from "sonner";
+import type { Course } from "../../api/courses";
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  Video,
+  Code,
+  FileQuestion,
   Lightbulb,
   Save,
   X,
-  CheckCircle,
   ChevronDown,
   ChevronUp,
   Edit
 } from "lucide-react";
 
-interface Question {
+export interface Question {
   id: string;
   question: string;
   type: "single" | "multiple" | "text";
@@ -36,84 +36,61 @@ interface Question {
   explanation?: string;
 }
 
-interface Lesson {
+export interface EditLesson {
   id: string;
-  courseId: string;
+  isNew?: boolean;
   title: string;
   duration: string;
   type: "video" | "interactive" | "quiz" | "project";
-  completed: boolean;
-  locked: boolean;
-  aiAssisted: boolean;
+  order_index: number;
+  is_locked: boolean;
   description?: string;
   videoUrl?: string;
   codeContent?: string;
-  questions?: Question[];
   projectDescription?: string;
-}
-
-interface Course {
-  id: string;
-  title: string;
-  instructor: string;
-  description: string;
-  progress: number;
-  totalLessons: number;
-  completedLessons: number;
-  difficulty: "beginner" | "intermediate" | "advanced";
-  category: string;
-  aiPowered: boolean;
-  interactive: boolean;
-  rating: number;
-  students: number;
-  estimatedTime: string;
-  thumbnail: string;
+  questions?: Question[];
 }
 
 interface EditCourseModalProps {
   course: Course;
-  lessons: Lesson[];
+  lessons: EditLesson[];
   open: boolean;
   onClose: () => void;
-  onSave: (course: Course, lessons: Lesson[]) => void;
+  onSave: (course: Partial<Course>, lessons: EditLesson[], deletedLessonIds: string[]) => void;
 }
 
 export function EditCourseModal({ course, lessons, open, onClose, onSave }: EditCourseModalProps) {
   const { language } = useLanguage();
   const [editedCourse, setEditedCourse] = useState<Course>(course);
-  const [editedLessons, setEditedLessons] = useState<Lesson[]>(lessons);
+  const [editedLessons, setEditedLessons] = useState<EditLesson[]>(lessons);
+  const [deletedLessonIds, setDeletedLessonIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"info" | "lessons">("info");
   const [expandedLesson, setExpandedLesson] = useState<string | null>(null);
-  const [editingLesson, setEditingLesson] = useState<string | null>(null);
 
   const t = {
     editCourse: language === "en" ? "Edit Course" : "Редактировать курс",
     courseInfo: language === "en" ? "Course Information" : "Информация о курсе",
     lessons: language === "en" ? "Lessons" : "Уроки",
     title: language === "en" ? "Title" : "Название",
-    instructor: language === "en" ? "Instructor" : "Преподаватель",
     description: language === "en" ? "Description" : "Описание",
-    category: language === "en" ? "Category" : "Категория",
     difficulty: language === "en" ? "Difficulty" : "Сложность",
     beginner: language === "en" ? "Beginner" : "Начальный",
     intermediate: language === "en" ? "Intermediate" : "Средний",
     advanced: language === "en" ? "Advanced" : "Продвинутый",
-    estimatedTime: language === "en" ? "Estimated Time" : "Примерное время",
     aiPowered: language === "en" ? "AI-Powered" : "С ИИ",
-    interactive: language === "en" ? "Interactive" : "Интерактивный",
     addLesson: language === "en" ? "Add Lesson" : "Добавить урок",
     save: language === "en" ? "Save Changes" : "Сохранить изменения",
     cancel: language === "en" ? "Cancel" : "Отмена",
     lessonTitle: language === "en" ? "Lesson Title" : "Название урока",
     lessonType: language === "en" ? "Lesson Type" : "Тип урока",
     video: language === "en" ? "Video" : "Видео",
+    interactive: language === "en" ? "Interactive" : "Интерактивный",
     quiz: language === "en" ? "Quiz" : "Тест",
     project: language === "en" ? "Project" : "Проект",
     duration: language === "en" ? "Duration" : "Длительность",
-    aiAssisted: language === "en" ? "AI Assisted" : "С помощью ИИ",
+    locked: language === "en" ? "Locked" : "Заблокирован",
     delete: language === "en" ? "Delete" : "Удалить",
     addQuestion: language === "en" ? "Add Question" : "Добавить вопрос",
-    question: language === "en" ? "Question" : "Вопрос",
     questionType: language === "en" ? "Question Type" : "Тип вопроса",
     singleChoice: language === "en" ? "Single Choice" : "Один вариант",
     multipleChoice: language === "en" ? "Multiple Choice" : "Несколько вариантов",
@@ -124,33 +101,37 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
     videoUrl: language === "en" ? "Video URL" : "URL видео",
     codeContent: language === "en" ? "Code Content" : "Код",
     projectDescription: language === "en" ? "Project Description" : "Описание проекта",
+    thumbnailIcon: language === "en" ? "Thumbnail Icon" : "Иконка превью",
   };
 
+  const icons = ["📚", "💻", "🎨", "🤖", "📊", "🎓", "🔬", "📱", "🌐", "⚡", "🎯", "🚀"];
+
   const addLesson = () => {
-    const newLesson: Lesson = {
-      id: `lesson-${Date.now()}`,
-      courseId: course.id,
-      title: "New Lesson",
+    const newLesson: EditLesson = {
+      id: `new-${Date.now()}`,
+      isNew: true,
+      title: language === "en" ? "New Lesson" : "Новый урок",
       duration: "15 min",
       type: "video",
-      completed: false,
-      locked: false,
-      aiAssisted: false,
+      order_index: editedLessons.length,
+      is_locked: false,
       description: "",
     };
     setEditedLessons([...editedLessons, newLesson]);
-    setEditingLesson(newLesson.id);
     setExpandedLesson(newLesson.id);
   };
 
   const deleteLesson = (lessonId: string) => {
+    const lesson = editedLessons.find(l => l.id === lessonId);
+    if (lesson && !lesson.isNew) {
+      setDeletedLessonIds([...deletedLessonIds, lessonId]);
+    }
     setEditedLessons(editedLessons.filter(l => l.id !== lessonId));
     if (expandedLesson === lessonId) setExpandedLesson(null);
-    if (editingLesson === lessonId) setEditingLesson(null);
   };
 
-  const updateLesson = (lessonId: string, updates: Partial<Lesson>) => {
-    setEditedLessons(editedLessons.map(l => 
+  const updateLesson = (lessonId: string, updates: Partial<EditLesson>) => {
+    setEditedLessons(editedLessons.map(l =>
       l.id === lessonId ? { ...l, ...updates } : l
     ));
   };
@@ -178,7 +159,7 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
     if (!lesson || !lesson.questions) return;
 
     updateLesson(lessonId, {
-      questions: lesson.questions.map(q => 
+      questions: lesson.questions.map(q =>
         q.id === questionId ? { ...q, ...updates } : q
       ),
     });
@@ -207,7 +188,17 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
   };
 
   const handleSave = () => {
-    onSave(editedCourse, editedLessons);
+    onSave(
+      {
+        title: editedCourse.title,
+        description: editedCourse.description,
+        difficulty: editedCourse.difficulty,
+        is_ai_powered: editedCourse.is_ai_powered,
+        thumbnail_emoji: editedCourse.thumbnail_emoji,
+      },
+      editedLessons,
+      deletedLessonIds
+    );
     toast.success(language === "en" ? "Course updated successfully!" : "Курс успешно обновлён!");
     onClose();
   };
@@ -231,7 +222,7 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
             {t.editCourse}
           </DialogTitle>
           <DialogDescription>
-            {language === "en" 
+            {language === "en"
               ? "Edit course information and manage lessons"
               : "Редактируйте информацию о курсе и управляйте уроками"
             }
@@ -255,60 +246,49 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="instructor">{t.instructor}</Label>
-              <Input
-                id="instructor"
-                value={editedCourse.instructor}
-                onChange={(e) => setEditedCourse({ ...editedCourse, instructor: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="description">{t.description}</Label>
               <Textarea
                 id="description"
                 rows={4}
-                value={editedCourse.description}
+                value={editedCourse.description ?? ""}
                 onChange={(e) => setEditedCourse({ ...editedCourse, description: e.target.value })}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">{t.category}</Label>
-                <Input
-                  id="category"
-                  value={editedCourse.category}
-                  onChange={(e) => setEditedCourse({ ...editedCourse, category: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="difficulty">{t.difficulty}</Label>
-                <Select
-                  value={editedCourse.difficulty}
-                  onValueChange={(v: any) => setEditedCourse({ ...editedCourse, difficulty: v as any })}
-                >
-                  <SelectTrigger id="difficulty">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="beginner">{t.beginner}</SelectItem>
-                    <SelectItem value="intermediate">{t.intermediate}</SelectItem>
-                    <SelectItem value="advanced">{t.advanced}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="difficulty">{t.difficulty}</Label>
+              <Select
+                value={editedCourse.difficulty}
+                onValueChange={(v: any) => setEditedCourse({ ...editedCourse, difficulty: v })}
+              >
+                <SelectTrigger id="difficulty">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginner">{t.beginner}</SelectItem>
+                  <SelectItem value="intermediate">{t.intermediate}</SelectItem>
+                  <SelectItem value="advanced">{t.advanced}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="estimatedTime">{t.estimatedTime}</Label>
-              <Input
-                id="estimatedTime"
-                placeholder="e.g., 8 weeks"
-                value={editedCourse.estimatedTime}
-                onChange={(e) => setEditedCourse({ ...editedCourse, estimatedTime: e.target.value })}
-              />
+              <Label>{t.thumbnailIcon}</Label>
+              <div className="grid grid-cols-6 gap-2">
+                {icons.map((icon) => (
+                  <Button
+                    key={icon}
+                    type="button"
+                    variant="outline"
+                    className={`h-12 text-2xl ${
+                      editedCourse.thumbnail_emoji === icon ? "border-primary bg-primary/10" : ""
+                    }`}
+                    onClick={() => setEditedCourse({ ...editedCourse, thumbnail_emoji: icon })}
+                  >
+                    {icon}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center justify-between">
@@ -319,21 +299,8 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
                 </p>
               </div>
               <Switch
-                checked={editedCourse.aiPowered}
-                onCheckedChange={(checked: any) => setEditedCourse({ ...editedCourse, aiPowered: checked })}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>{t.interactive}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {language === "en" ? "Interactive learning features" : "Интерактивные функции обучения"}
-                </p>
-              </div>
-              <Switch
-                checked={editedCourse.interactive}
-                onCheckedChange={(checked: any) => setEditedCourse({ ...editedCourse, interactive: checked })}
+                checked={editedCourse.is_ai_powered}
+                onCheckedChange={(checked: any) => setEditedCourse({ ...editedCourse, is_ai_powered: checked })}
               />
             </div>
           </TabsContent>
@@ -397,7 +364,7 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
                           <Label>{t.lessonType}</Label>
                           <Select
                             value={lesson.type}
-                            onValueChange={(v: any) => updateLesson(lesson.id, { type: v as any })}
+                            onValueChange={(v: any) => updateLesson(lesson.id, { type: v })}
                           >
                             <SelectTrigger>
                               <SelectValue />
@@ -559,7 +526,7 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
                                             </Select>
                                           ) : (
                                             <div className="text-sm text-muted-foreground">
-                                              {language === "en" 
+                                              {language === "en"
                                                 ? "Multiple correct answers can be selected during the quiz"
                                                 : "Несколько правильных ответов можно выбрать во время теста"
                                               }
@@ -595,7 +562,7 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
                             </div>
                           ) : (
                             <p className="text-sm text-muted-foreground text-center py-8">
-                              {language === "en" 
+                              {language === "en"
                                 ? "No questions added yet. Click 'Add Question' to create quiz questions."
                                 : "Вопросы еще не добавлены. Нажмите 'Добавить вопрос' для создания вопросов теста."
                               }
@@ -607,10 +574,10 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
                       <div className="flex items-center justify-between pt-2">
                         <div className="flex items-center gap-2">
                           <Switch
-                            checked={lesson.aiAssisted}
-                            onCheckedChange={(checked: any) => updateLesson(lesson.id, { aiAssisted: checked })}
+                            checked={lesson.is_locked}
+                            onCheckedChange={(checked: any) => updateLesson(lesson.id, { is_locked: checked })}
                           />
-                          <Label>{t.aiAssisted}</Label>
+                          <Label>{t.locked}</Label>
                         </div>
                       </div>
                     </CardContent>
@@ -620,7 +587,7 @@ export function EditCourseModal({ course, lessons, open, onClose, onSave }: Edit
 
               {editedLessons.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
-                  {language === "en" 
+                  {language === "en"
                     ? "No lessons added yet. Click 'Add Lesson' to get started."
                     : "Уроки еще не добавлены. Нажмите 'Добавить урок' чтобы начать."
                   }

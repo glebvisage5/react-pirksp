@@ -28,6 +28,17 @@ export async function getGroupMembers(groupId: string) {
   `, [groupId]);
 }
 
+export async function getMyGroup(userId: string) {
+  const group = await queryOne(`
+    SELECT g.* FROM groups g
+    JOIN group_members gm ON gm.group_id = g.id
+    WHERE gm.user_id = $1
+  `, [userId]);
+  if (!group) return null;
+  const members = await getGroupMembers(group["id"] as string);
+  return { ...group, members };
+}
+
 export async function createGroup(name: string) {
   const [group] = await query(
     "INSERT INTO groups (id, name) VALUES ($1, $2) RETURNING *",

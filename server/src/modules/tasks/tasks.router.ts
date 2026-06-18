@@ -49,8 +49,8 @@ router.get("/:id", requireAuth, async (req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 });
 
-// POST /api/tasks — только admin
-router.post("/", requireAuth, requireRole("admin"), async (req: Request, res: Response, next: NextFunction) => {
+// POST /api/tasks — создать задачу (для себя или, если admin, для назначения позже)
+router.post("/", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   const parsed = taskSchema.safeParse(req.body);
   if (!parsed.success) return next(new AppError(422, parsed.error.issues.map(i => i.message).join(", ")));
   try {

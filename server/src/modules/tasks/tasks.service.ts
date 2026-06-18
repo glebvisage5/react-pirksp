@@ -69,7 +69,12 @@ export async function createTask(data: Record<string, unknown>, createdBy: strin
     VALUES ($1,$2,$3,$4,$5,$6,$7)
     RETURNING *
   `, [uuidv4(), data["title"], data["description"] ?? null, data["course_id"] ?? null, data["due_date"] ?? null, data["priority"], createdBy]);
-  return task;
+  await query(`
+    INSERT INTO user_tasks (user_id, task_id, status, progress)
+    VALUES ($1, $2, 'todo', 0)
+    ON CONFLICT DO NOTHING
+  `, [createdBy, task.id]);
+  return getTask(task.id, createdBy);
 }
 
 export async function updateTask(taskId: string, data: Record<string, unknown>, userId: string, isAdmin: boolean) {
