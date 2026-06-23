@@ -4,14 +4,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
-import { 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +15,7 @@ import {
 } from "../ui/dialog";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Award, Plus, Edit, Trash2, Search, Trophy, Star } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Trophy } from "lucide-react";
 import { useLanguage } from "../../lib/language-context";
 
 interface Achievement {
@@ -78,52 +70,52 @@ export function AdminModeAchievements() {
   };
 
   const [achievements, setAchievements] = useState<Achievement[]>([
-    { 
-      id: "1", 
-      name: "React Master", 
-      description: "Complete all React Fundamentals lessons",
-      course: "React Fundamentals", 
-      stage: "Final", 
+    {
+      id: "1",
+      name: "Мастер React",
+      description: "Пройти все уроки курса React Fundamentals",
+      course: "React Fundamentals",
+      stage: "Финал",
       studentsEarned: 42,
       icon: "🏆",
       rarity: "epic"
     },
-    { 
-      id: "2", 
-      name: "First Steps", 
-      description: "Complete your first lesson",
-      course: "All Courses", 
-      stage: "Stage 1", 
+    {
+      id: "2",
+      name: "Первые шаги",
+      description: "Пройти первый урок",
+      course: "Все курсы",
+      stage: "Этап 1",
       studentsEarned: 156,
       icon: "🌟",
       rarity: "common"
     },
-    { 
-      id: "3", 
-      name: "Database Guru", 
-      description: "Design 5 complex database schemas",
-      course: "Database Design", 
-      stage: "Advanced", 
+    {
+      id: "3",
+      name: "Гуру баз данных",
+      description: "Разработать 5 сложных схем баз данных",
+      course: "Database Design",
+      stage: "Продвинутый",
       studentsEarned: 23,
       icon: "💎",
       rarity: "legendary"
     },
-    { 
-      id: "4", 
-      name: "Team Player", 
-      description: "Help 10 students with their assignments",
-      course: "All Courses", 
-      stage: "Any", 
+    {
+      id: "4",
+      name: "Командный игрок",
+      description: "Помочь 10 студентам с заданиями",
+      course: "Все курсы",
+      stage: "Любой",
       studentsEarned: 67,
       icon: "🤝",
       rarity: "rare"
     },
-    { 
-      id: "5", 
-      name: "Code Ninja", 
-      description: "Complete 50 coding challenges",
-      course: "Advanced JavaScript", 
-      stage: "Intermediate", 
+    {
+      id: "5",
+      name: "Ниндзя кода",
+      description: "Выполнить 50 заданий по программированию",
+      course: "Advanced JavaScript",
+      stage: "Средний",
       studentsEarned: 34,
       icon: "⚡",
       rarity: "epic"
@@ -211,7 +203,7 @@ export function AdminModeAchievements() {
                   id="create-name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="React Master"
+                  placeholder={language === "en" ? "React Master" : "Мастер React"}
                 />
               </div>
               <div>
@@ -239,7 +231,7 @@ export function AdminModeAchievements() {
                     id="create-stage"
                     value={formData.stage}
                     onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
-                    placeholder="Stage 1"
+                    placeholder={language === "en" ? "Stage 1" : "Этап 1"}
                   />
                 </div>
               </div>

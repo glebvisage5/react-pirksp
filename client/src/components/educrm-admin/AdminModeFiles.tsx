@@ -55,7 +55,6 @@ export function AdminModeFiles() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [folderName, setFolderName] = useState("");
 
   const t = {
@@ -201,7 +200,7 @@ export function AdminModeFiles() {
                   id="folder-name"
                   value={folderName}
                   onChange={(e) => setFolderName(e.target.value)}
-                  placeholder="My Folder"
+                  placeholder={language === "en" ? "My Folder" : "Моя папка"}
                 />
               </div>
               <DialogFooter>

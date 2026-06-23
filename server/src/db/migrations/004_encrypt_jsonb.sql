@@ -1,0 +1,2 @@
+ALTER TABLE users ALTER COLUMN social_links TYPE TEXT USING social_links::TEXT;
+ALTER TABLE users ALTER COLUMN social_links SET DEFAULT NULL;

@@ -14,7 +14,7 @@ import { motion } from "motion/react";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { getTranslations, type Language } from "../../lib/translations";
@@ -125,55 +125,51 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
   const scrollToOrderForm = () => {
     setIsServicesModalOpen(false);
     setIsMobileMenuOpen(false);
-    // Используем requestAnimationFrame для гарантии, что DOM обновлен
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (orderFormRef.current) {
-          orderFormRef.current.scrollIntoView({ 
-            behavior: "smooth", 
-            block: "start" 
-          });
-        }
-      }, 50);
-    });
+    setTimeout(() => {
+      const el = document.getElementById("contact-form");
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: "smooth" });
+    }, 0);
   };
 
   // Features data
+  const featureItems = t.features.items;
   const features = [
     {
       icon: <Zap className="w-6 h-6" />,
-      title: t.features.items[0].title,
-      description: t.features.items[0].description,
+      title: featureItems[0]?.title ?? "",
+      description: featureItems[0]?.description ?? "",
       color: "from-yellow-500 to-orange-600"
     },
     {
       icon: <Shield className="w-6 h-6" />,
-      title: t.features.items[1].title,
-      description: t.features.items[1].description,
+      title: featureItems[1]?.title ?? "",
+      description: featureItems[1]?.description ?? "",
       color: "from-purple-500 to-pink-600"
     },
     {
       icon: <Users className="w-6 h-6" />,
-      title: t.features.items[2].title,
-      description: t.features.items[2].description,
+      title: featureItems[2]?.title ?? "",
+      description: featureItems[2]?.description ?? "",
       color: "from-green-500 to-emerald-600"
     },
     {
       icon: <TrendingUp className="w-6 h-6" />,
-      title: t.features.items[3].title,
-      description: t.features.items[3].description,
+      title: featureItems[3]?.title ?? "",
+      description: featureItems[3]?.description ?? "",
       color: "from-cyan-500 to-blue-600"
     },
     {
       icon: <HeadphonesIcon className="w-6 h-6" />,
-      title: t.features.items[4].title,
-      description: t.features.items[4].description,
+      title: featureItems[4]?.title ?? "",
+      description: featureItems[4]?.description ?? "",
       color: "from-blue-600 to-indigo-600"
     },
     {
       icon: <Code2 className="w-6 h-6" />,
-      title: t.features.items[5].title,
-      description: t.features.items[5].description,
+      title: featureItems[5]?.title ?? "",
+      description: featureItems[5]?.description ?? "",
       color: "from-red-500 to-pink-600"
     }
   ];
@@ -416,13 +412,14 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsLoginModalOpen(true)}
+                    className="cursor-pointer"
                   >
                     {t.auth.login}
                   </Button>
                   <Button
                     onClick={() => setIsRegisterModalOpen(true)}
                     size="sm"
-                    className="gap-2 text-white shadow-lg hover:shadow-xl transition-shadow"
+                    className="gap-2 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
                     style={{
                       background: 'linear-gradient(135deg, #a855f7, #4f46e5, #22c55e)',
                       color: 'white'
@@ -654,7 +651,7 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
               <Button
                 size="lg"
                 onClick={handleExploreServices}
-                className="gap-2 text-white shadow-lg hover:shadow-xl transition-shadow text-lg px-8"
+                className="gap-2 text-white shadow-lg hover:shadow-xl transition-shadow text-lg px-8 cursor-pointer"
                 style={{
                   background: 'linear-gradient(135deg, #a855f7, #4f46e5, #22c55e)',
                 }}
@@ -959,7 +956,7 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
       </section>
 
       {/* Order Form Section */}
-      <section id="contact-form" ref={orderFormRef} className="py-20 sm:py-32 bg-gradient-to-br from-purple-50 via-indigo-50 to-green-50 dark:from-purple-950/20 dark:via-indigo-950/20 dark:to-green-950/20">
+      <section id="contact-form" ref={orderFormRef} className="py-20 sm:py-32 bg-gradient-to-br from-purple-50 via-indigo-50 to-green-50 dark:from-purple-950/20 dark:via-indigo-950/20 dark:to-green-950/20 scroll-mt-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             className="max-w-2xl mx-auto"
@@ -1075,7 +1072,7 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <span className="text-sm text-muted-foreground">
-                {t.footer.copyright}
+                © 2024 Avis. {t.footer.rights}
               </span>
             </div>
             <div className="flex gap-4 text-sm">
@@ -1191,7 +1188,7 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
           </DialogHeader>
           <form onSubmit={handleRegisterSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="reg-name">{t.auth.fullName}</Label>
+              <Label htmlFor="reg-name">{t.auth.name}</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1292,7 +1289,7 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
             </Button>
 
             <div className="text-center text-sm">
-              <span className="text-muted-foreground">{t.auth.haveAccount}</span>
+              <span className="text-muted-foreground">{t.auth.hasAccount}</span>
               <button
                 type="button"
                 onClick={() => {

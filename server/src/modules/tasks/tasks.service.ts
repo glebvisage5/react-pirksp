@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { query, queryOne } from "../../config/database";
 import { AppError } from "../../middleware/errorHandler";
+import { encrypt, decryptFields } from "../../utils/crypto";
+
+const TASK_FIELDS = ["title", "description"];
 
 export async function listUserTasks(userId: string, limit: number, statusFilter?: string) {
   const params: unknown[] = [userId, limit];
@@ -9,7 +12,7 @@ export async function listUserTasks(userId: string, limit: number, statusFilter?
     params.push(statusFilter);
     where += ` AND ut.status = $${params.length}`;
   }
-  return query(`
+  const rows = await query(`
     SELECT
       t.*,
       ut.status,
@@ -23,6 +26,7 @@ export async function listUserTasks(userId: string, limit: number, statusFilter?
     ORDER BY t.due_date ASC NULLS LAST, t.created_at DESC
     LIMIT $2
   `, params);
+  return rows.map(r => decryptFields(r, [...TASK_FIELDS, "course_title"]));
 }
 
 export async function getUserStats(userId: string) {
@@ -60,21 +64,23 @@ export async function getTask(taskId: string, userId: string) {
     WHERE t.id = $1
   `, [taskId, userId]);
   if (!task) throw new AppError(404, "Task not found");
-  return task;
+  return decryptFields(task, [...TASK_FIELDS, "course_title"]);
 }
 
 export async function createTask(data: Record<string, unknown>, createdBy: string) {
+  const encTitle = data["title"] != null ? encrypt(data["title"] as string) : null;
+  const encDesc = data["description"] != null ? encrypt(data["description"] as string) : null;
   const [task] = await query(`
     INSERT INTO tasks (id, title, description, course_id, due_date, priority, created_by)
     VALUES ($1,$2,$3,$4,$5,$6,$7)
     RETURNING *
-  `, [uuidv4(), data["title"], data["description"] ?? null, data["course_id"] ?? null, data["due_date"] ?? null, data["priority"], createdBy]);
+  `, [uuidv4(), encTitle, encDesc, data["course_id"] ?? null, data["due_date"] ?? null, data["priority"], createdBy]);
   await query(`
     INSERT INTO user_tasks (user_id, task_id, status, progress)
     VALUES ($1, $2, 'todo', 0)
     ON CONFLICT DO NOTHING
   `, [createdBy, task.id]);
-  return getTask(task.id, createdBy);
+  return getTask(String(task.id), createdBy);
 }
 
 export async function updateTask(taskId: string, data: Record<string, unknown>, userId: string, isAdmin: boolean) {
@@ -85,17 +91,20 @@ export async function updateTask(taskId: string, data: Record<string, unknown>, 
     let idx = 1;
     for (const key of allowed) {
       if (data[key] !== undefined) {
+        let value = data[key];
+        if ((key === "title" || key === "description") && value != null) {
+          value = encrypt(value as string);
+        }
         fields.push(`${key} = $${idx++}`);
-        values.push(data[key]);
+        values.push(value);
       }
     }
     if (fields.length === 0) throw new AppError(400, "Nothing to update");
     values.push(taskId);
     const [task] = await query(`UPDATE tasks SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, values);
     if (!task) throw new AppError(404, "Task not found");
-    return task;
+    return decryptFields(task, TASK_FIELDS);
   }
-  // user may only update status/progress on their assignment
   const update: Record<string, unknown> = {};
   if (data["status"]) update["status"] = data["status"];
   if (data["progress"] !== undefined) update["progress"] = data["progress"];

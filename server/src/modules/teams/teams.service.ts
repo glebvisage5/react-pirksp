@@ -1,12 +1,17 @@
 import { v4 as uuidv4 } from "uuid";
 import { query, queryOne } from "../../config/database";
 import { AppError } from "../../middleware/errorHandler";
+import { encrypt, decryptFields } from "../../utils/crypto";
+
+const TEAM_FIELDS = ["name", "description"];
+const TASK_FIELDS = ["title", "description"];
+const PROJECT_FIELDS = ["title", "description"];
 
 // ─── Teams ────────────────────────────────────────────────────────────────────
 
 export async function listTeams(userId: string, isAdmin = false) {
   if (isAdmin) {
-    return query(`
+    const rows = await query(`
       SELECT t.*, u.name AS owner_name, 'Team Leader' AS user_role,
         (SELECT COUNT(*)::int FROM team_members WHERE team_id = t.id) AS member_count,
         (SELECT COUNT(*)::int FROM projects WHERE team_id = t.id) AS project_count
@@ -14,8 +19,9 @@ export async function listTeams(userId: string, isAdmin = false) {
       LEFT JOIN users u ON u.id = t.owner_id
       ORDER BY t.created_at DESC
     `, []);
+    return rows.map(r => decryptFields(r, [...TEAM_FIELDS, "owner_name"]));
   }
-  return query(`
+  const rows = await query(`
     SELECT t.*, u.name AS owner_name, tm.role AS user_role,
       (SELECT COUNT(*)::int FROM team_members WHERE team_id = t.id) AS member_count,
       (SELECT COUNT(*)::int FROM projects WHERE team_id = t.id) AS project_count
@@ -24,6 +30,7 @@ export async function listTeams(userId: string, isAdmin = false) {
     LEFT JOIN users u ON u.id = t.owner_id
     ORDER BY t.created_at DESC
   `, [userId]);
+  return rows.map(r => decryptFields(r, [...TEAM_FIELDS, "owner_name"]));
 }
 
 export async function getTeam(teamId: string, userId: string, isAdmin = false) {
@@ -37,7 +44,7 @@ export async function getTeam(teamId: string, userId: string, isAdmin = false) {
       WHERE t.id = $1
     `, [teamId]);
     if (!team) throw new AppError(404, "Team not found");
-    return team;
+    return decryptFields(team, [...TEAM_FIELDS, "owner_name"]);
   }
   const team = await queryOne(`
     SELECT t.*, u.name AS owner_name, tm.role AS user_role,
@@ -49,14 +56,16 @@ export async function getTeam(teamId: string, userId: string, isAdmin = false) {
     WHERE t.id = $1
   `, [teamId, userId]);
   if (!team) throw new AppError(404, "Team not found or access denied");
-  return team;
+  return decryptFields(team, [...TEAM_FIELDS, "owner_name"]);
 }
 
 export async function createTeam(name: string, description: string | undefined, ownerId: string) {
   const teamId = uuidv4();
+  const encName = encrypt(name);
+  const encDesc = description != null ? encrypt(description) : null;
   await query(
     "INSERT INTO teams (id, name, description, owner_id) VALUES ($1,$2,$3,$4)",
-    [teamId, name, description ?? null, ownerId]
+    [teamId, encName, encDesc, ownerId]
   );
   await query(
     "INSERT INTO team_members (team_id, user_id, role) VALUES ($1,$2,'Team Leader')",
@@ -71,12 +80,17 @@ export async function updateTeam(teamId: string, data: Record<string, unknown>, 
   const values: unknown[] = [];
   let idx = 1;
   for (const key of ["name", "description"]) {
-    if (data[key] !== undefined) { fields.push(`${key} = $${idx++}`); values.push(data[key]); }
+    if (data[key] !== undefined) {
+      let value = data[key];
+      if (value != null) value = encrypt(value as string);
+      fields.push(`${key} = $${idx++}`);
+      values.push(value);
+    }
   }
   if (!fields.length) throw new AppError(400, "Nothing to update");
   values.push(teamId);
   const [team] = await query(`UPDATE teams SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, values);
-  return team;
+  return decryptFields(team, TEAM_FIELDS);
 }
 
 export async function deleteTeam(teamId: string) {
@@ -87,7 +101,7 @@ export async function deleteTeam(teamId: string) {
 // ─── Members ──────────────────────────────────────────────────────────────────
 
 export async function listMembers(teamId: string) {
-  return query(`
+  const rows = await query(`
     SELECT u.id, u.name, u.email, u.avatar_url, tm.role, tm.joined_at,
       (SELECT COUNT(*)::int FROM team_tasks WHERE team_id = $1 AND assignee_id = u.id) AS tasks_assigned,
       (SELECT COUNT(*)::int FROM team_tasks WHERE team_id = $1 AND assignee_id = u.id AND status = 'done') AS tasks_completed
@@ -98,6 +112,7 @@ export async function listMembers(teamId: string) {
       CASE tm.role WHEN 'Team Leader' THEN 1 WHEN 'Moderator' THEN 2 WHEN 'Member' THEN 3 ELSE 4 END,
       u.name
   `, [teamId]);
+  return rows.map(r => decryptFields(r, ["name", "email"]));
 }
 
 export async function addMember(teamId: string, userId: string, role: string) {
@@ -123,7 +138,7 @@ export async function removeMember(teamId: string, memberId: string, requesterId
 // ─── Projects ─────────────────────────────────────────────────────────────────
 
 export async function listProjects(teamId: string) {
-  return query(`
+  const rows = await query(`
     SELECT p.*,
       (SELECT COUNT(*)::int FROM team_tasks WHERE project_id = p.id) AS task_count,
       (SELECT COUNT(*)::int FROM team_tasks WHERE project_id = p.id AND status = 'done') AS completed_task_count
@@ -131,15 +146,18 @@ export async function listProjects(teamId: string) {
     WHERE p.team_id = $1
     ORDER BY p.created_at DESC
   `, [teamId]);
+  return rows.map(r => decryptFields(r, PROJECT_FIELDS));
 }
 
 export async function createProject(teamId: string, data: Record<string, unknown>, userId: string) {
   await assertRole(teamId, userId, ["Team Leader", "Moderator"]);
+  const encTitle = encrypt(data["title"] as string);
+  const encDesc = data["description"] != null ? encrypt(data["description"] as string) : null;
   const [p] = await query(
     "INSERT INTO projects (id,team_id,title,description,status,start_date,end_date) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
-    [uuidv4(), teamId, data["title"], data["description"] ?? null, data["status"] ?? "planned", data["start_date"] ?? null, data["end_date"] ?? null]
+    [uuidv4(), teamId, encTitle, encDesc, data["status"] ?? "planned", data["start_date"] ?? null, data["end_date"] ?? null]
   );
-  return p;
+  return decryptFields(p, PROJECT_FIELDS);
 }
 
 export async function updateProject(projectId: string, data: Record<string, unknown>, userId: string) {
@@ -148,11 +166,18 @@ export async function updateProject(projectId: string, data: Record<string, unkn
   await assertRole(proj.team_id, userId, ["Team Leader", "Moderator"]);
   const allowed = ["title", "description", "status", "start_date", "end_date"];
   const fields: string[] = []; const values: unknown[] = []; let idx = 1;
-  for (const k of allowed) { if (data[k] !== undefined) { fields.push(`${k} = $${idx++}`); values.push(data[k]); } }
+  for (const k of allowed) {
+    if (data[k] !== undefined) {
+      let value = data[k];
+      if ((k === "title" || k === "description") && value != null) value = encrypt(value as string);
+      fields.push(`${k} = $${idx++}`);
+      values.push(value);
+    }
+  }
   if (!fields.length) throw new AppError(400, "Nothing to update");
   values.push(projectId);
   const [p] = await query(`UPDATE projects SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, values);
-  return p;
+  return decryptFields(p, PROJECT_FIELDS);
 }
 
 export async function deleteProject(projectId: string, userId: string) {
@@ -170,7 +195,7 @@ export async function listTeamTasks(teamId: string, filters: Record<string, stri
   if (filters["project_id"]) { params.push(filters["project_id"]); where += ` AND tt.project_id = $${params.length}`; }
   if (filters["status"]) { params.push(filters["status"]); where += ` AND tt.status = $${params.length}`; }
   if (filters["assignee_id"]) { params.push(filters["assignee_id"]); where += ` AND tt.assignee_id = $${params.length}`; }
-  return query(`
+  const rows = await query(`
     SELECT tt.*, u.name AS assignee_name, p.title AS project_title
     FROM team_tasks tt
     LEFT JOIN users u ON u.id = tt.assignee_id
@@ -180,16 +205,19 @@ export async function listTeamTasks(teamId: string, filters: Record<string, stri
       CASE tt.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
       tt.due_date ASC NULLS LAST
   `, params);
+  return rows.map(r => decryptFields(r, [...TASK_FIELDS, "assignee_name", "project_title"]));
 }
 
 export async function createTeamTask(teamId: string, data: Record<string, unknown>, userId: string) {
   await assertRole(teamId, userId, ["Team Leader", "Moderator", "Member"]);
+  const encTitle = encrypt(data["title"] as string);
+  const encDesc = data["description"] != null ? encrypt(data["description"] as string) : null;
   const [t] = await query(
     "INSERT INTO team_tasks (id,team_id,project_id,title,description,status,priority,assignee_id,due_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
-    [uuidv4(), teamId, data["project_id"] ?? null, data["title"], data["description"] ?? null,
+    [uuidv4(), teamId, data["project_id"] ?? null, encTitle, encDesc,
      data["status"] ?? "todo", data["priority"] ?? "medium", data["assignee_id"] ?? null, data["due_date"] ?? null]
   );
-  return t;
+  return decryptFields(t, TASK_FIELDS);
 }
 
 export async function updateTeamTask(taskId: string, data: Record<string, unknown>, userId: string) {
@@ -204,11 +232,18 @@ export async function updateTeamTask(taskId: string, data: Record<string, unknow
   }
   const allowed = ["title", "description", "status", "priority", "assignee_id", "due_date", "project_id"];
   const fields: string[] = []; const values: unknown[] = []; let idx = 1;
-  for (const k of allowed) { if (data[k] !== undefined) { fields.push(`${k} = $${idx++}`); values.push(data[k]); } }
+  for (const k of allowed) {
+    if (data[k] !== undefined) {
+      let value = data[k];
+      if ((k === "title" || k === "description") && value != null) value = encrypt(value as string);
+      fields.push(`${k} = $${idx++}`);
+      values.push(value);
+    }
+  }
   if (!fields.length) throw new AppError(400, "Nothing to update");
   values.push(taskId);
   const [t] = await query(`UPDATE team_tasks SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, values);
-  return t;
+  return decryptFields(t, TASK_FIELDS);
 }
 
 export async function deleteTeamTask(taskId: string, userId: string) {
@@ -221,7 +256,7 @@ export async function deleteTeamTask(taskId: string, userId: string) {
 // ─── Specs ────────────────────────────────────────────────────────────────────
 
 export async function listSpecs(teamId: string) {
-  return query(`
+  const rows = await query(`
     SELECT s.*, u.name AS author_name, p.title AS project_title
     FROM specifications s
     LEFT JOIN users u ON u.id = s.created_by
@@ -229,6 +264,7 @@ export async function listSpecs(teamId: string) {
     WHERE s.team_id = $1
     ORDER BY s.updated_at DESC
   `, [teamId]);
+  return rows.map(r => decryptFields(r, ["title", "author_name", "project_title"]));
 }
 
 export async function getSpec(specId: string) {
@@ -240,16 +276,17 @@ export async function getSpec(specId: string) {
     WHERE s.id = $1
   `, [specId]);
   if (!s) throw new AppError(404, "Spec not found");
-  return s;
+  return decryptFields(s, ["title", "author_name", "project_title"]);
 }
 
 export async function createSpec(teamId: string, data: Record<string, unknown>, userId: string) {
   await assertRole(teamId, userId, ["Team Leader", "Moderator"]);
+  const encTitle = encrypt(data["title"] as string);
   const [s] = await query(
     "INSERT INTO specifications (id,team_id,project_id,title,blocks,created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
-    [uuidv4(), teamId, data["project_id"] ?? null, data["title"], JSON.stringify(data["blocks"] ?? []), userId]
+    [uuidv4(), teamId, data["project_id"] ?? null, encTitle, JSON.stringify(data["blocks"] ?? []), userId]
   );
-  return s;
+  return decryptFields(s, ["title"]);
 }
 
 export async function updateSpec(specId: string, data: Record<string, unknown>, userId: string) {
@@ -258,17 +295,17 @@ export async function updateSpec(specId: string, data: Record<string, unknown>, 
   );
   if (!spec) throw new AppError(404, "Spec not found");
   await assertRole(spec.team_id, userId, ["Team Leader", "Moderator"]);
-  // save version snapshot before update
   await query(
     "INSERT INTO spec_versions (id,spec_id,version,blocks,saved_by) VALUES ($1,$2,$3,$4,$5)",
     [uuidv4(), specId, spec.version, data["blocks"] ? JSON.stringify(data["blocks"]) : "[]", userId]
   );
   const newVersion = spec.version + 1;
+  const encTitle = data["title"] != null ? encrypt(data["title"] as string) : null;
   const [s] = await query(
     "UPDATE specifications SET title=$1, blocks=$2, version=$3, updated_at=NOW() WHERE id=$4 RETURNING *",
-    [data["title"] ?? null, JSON.stringify(data["blocks"] ?? []), newVersion, specId]
+    [encTitle, JSON.stringify(data["blocks"] ?? []), newVersion, specId]
   );
-  return s;
+  return decryptFields(s, ["title"]);
 }
 
 export async function deleteSpec(specId: string, userId: string) {
@@ -279,32 +316,36 @@ export async function deleteSpec(specId: string, userId: string) {
 }
 
 export async function listSpecVersions(specId: string) {
-  return query(
+  const rows = await query(
     "SELECT sv.*, u.name AS saved_by_name FROM spec_versions sv LEFT JOIN users u ON u.id = sv.saved_by WHERE sv.spec_id = $1 ORDER BY sv.version DESC",
     [specId]
   );
+  return rows.map(r => decryptFields(r, ["saved_by_name"]));
 }
 
 // ─── Files ────────────────────────────────────────────────────────────────────
 
 export async function listFiles(teamId: string) {
-  return query(`
+  const rows = await query(`
     SELECT f.*, u.name AS uploader_name
     FROM files f
     LEFT JOIN users u ON u.id = f.uploaded_by
     WHERE f.context_type = 'team' AND f.context_id = $1
     ORDER BY f.created_at DESC
   `, [teamId]);
+  return rows.map(r => decryptFields(r, ["name", "storage_path", "folder", "uploader_name"]));
 }
 
 export async function saveFile(teamId: string, fileData: {
   name: string; size: number; mime_type: string; storage_path: string;
 }, userId: string) {
+  const encName = encrypt(fileData.name);
+  const encPath = encrypt(fileData.storage_path);
   const [f] = await query(
     "INSERT INTO files (id,name,size,mime_type,storage_path,uploaded_by,context_type,context_id) VALUES ($1,$2,$3,$4,$5,$6,'team',$7) RETURNING *",
-    [uuidv4(), fileData.name, fileData.size, fileData.mime_type, fileData.storage_path, userId, teamId]
+    [uuidv4(), encName, fileData.size, fileData.mime_type, encPath, userId, teamId]
   );
-  return f;
+  return decryptFields(f, ["name", "storage_path"]);
 }
 
 export async function deleteFile(fileId: string, userId: string) {
@@ -325,27 +366,30 @@ export async function deleteFile(fileId: string, userId: string) {
 // ─── Team Roles ───────────────────────────────────────────────────────────────
 
 export async function listTeamRoles(teamId: string) {
-  return query("SELECT * FROM team_roles WHERE team_id = $1 ORDER BY created_at ASC", [teamId]);
+  const rows = await query("SELECT * FROM team_roles WHERE team_id = $1 ORDER BY created_at ASC", [teamId]);
+  return rows.map(r => decryptFields(r, ["name"]));
 }
 
 export async function createTeamRole(teamId: string, data: Record<string, unknown>, userId: string) {
   await assertRole(teamId, userId, ["Team Leader"]);
+  const encName = encrypt(data["name"] as string);
   const [r] = await query(
     "INSERT INTO team_roles (id,team_id,name,permissions) VALUES ($1,$2,$3,$4) RETURNING *",
-    [uuidv4(), teamId, data["name"], JSON.stringify(data["permissions"] ?? [])]
+    [uuidv4(), teamId, encName, JSON.stringify(data["permissions"] ?? [])]
   );
-  return r;
+  return decryptFields(r, ["name"]);
 }
 
 export async function updateTeamRole(roleId: string, data: Record<string, unknown>, userId: string) {
   const role = await queryOne<{ team_id: string }>("SELECT team_id FROM team_roles WHERE id = $1", [roleId]);
   if (!role) throw new AppError(404, "Role not found");
   await assertRole(role.team_id, userId, ["Team Leader"]);
+  const encName = encrypt(data["name"] as string);
   const [r] = await query(
     "UPDATE team_roles SET name=$1, permissions=$2 WHERE id=$3 RETURNING *",
-    [data["name"], JSON.stringify(data["permissions"] ?? []), roleId]
+    [encName, JSON.stringify(data["permissions"] ?? []), roleId]
   );
-  return r;
+  return decryptFields(r, ["name"]);
 }
 
 export async function deleteTeamRole(roleId: string, userId: string) {

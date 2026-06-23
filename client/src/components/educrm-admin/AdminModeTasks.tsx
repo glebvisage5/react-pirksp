@@ -23,7 +23,7 @@ import {
 } from "../ui/dialog";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { CheckCircle, Plus, Edit, Trash2, Search, Calendar, Users } from "lucide-react";
+import { CheckCircle, Plus, Edit, Trash2, Search, Calendar } from "lucide-react";
 import { useLanguage } from "../../lib/language-context";
 
 interface Task {
@@ -90,47 +90,47 @@ export function AdminModeTasks() {
   };
 
   const [tasks, setTasks] = useState<Task[]>([
-    { 
-      id: "1", 
-      title: "Complete React Tutorial", 
-      description: "Finish chapters 1-5 of React documentation",
-      group: "FE-301", 
-      course: "React Fundamentals", 
-      assignedTo: "Group FE-301",
-      dueDate: "2024-12-10", 
+    {
+      id: "1",
+      title: "Пройти курс по React",
+      description: "Пройти главы 1-5 документации React",
+      group: "FE-301",
+      course: "React Fundamentals",
+      assignedTo: "Группа FE-301",
+      dueDate: "2024-12-10",
       status: "in-progress",
       priority: "high"
     },
-    { 
-      id: "2", 
-      title: "Database Design Assignment", 
-      description: "Design schema for e-commerce application",
-      group: "BE-201", 
-      course: "Database Design", 
-      assignedTo: "Group BE-201",
-      dueDate: "2024-12-08", 
+    {
+      id: "2",
+      title: "Задание по проектированию БД",
+      description: "Разработать схему для интернет-магазина",
+      group: "BE-201",
+      course: "Database Design",
+      assignedTo: "Группа BE-201",
+      dueDate: "2024-12-08",
       status: "completed",
       priority: "medium"
     },
-    { 
-      id: "3", 
-      title: "JavaScript ES6 Exercises", 
-      description: "Complete all ES6 practice exercises",
-      group: "FE-302", 
-      course: "Advanced JavaScript", 
-      assignedTo: "Group FE-302",
-      dueDate: "2024-12-15", 
+    {
+      id: "3",
+      title: "Упражнения по JavaScript ES6",
+      description: "Выполнить все практические задания по ES6",
+      group: "FE-302",
+      course: "Advanced JavaScript",
+      assignedTo: "Группа FE-302",
+      dueDate: "2024-12-15",
       status: "pending",
       priority: "low"
     },
-    { 
-      id: "4", 
-      title: "Node.js API Project", 
-      description: "Build RESTful API with Express",
-      group: "BE-201", 
-      course: "Node.js Backend", 
-      assignedTo: "Group BE-201",
-      dueDate: "2024-12-12", 
+    {
+      id: "4",
+      title: "Проект API на Node.js",
+      description: "Создать RESTful API с использованием Express",
+      group: "BE-201",
+      course: "Node.js Backend",
+      assignedTo: "Группа BE-201",
+      dueDate: "2024-12-12",
       status: "in-progress",
       priority: "high"
     },
@@ -236,7 +236,7 @@ export function AdminModeTasks() {
                   id="create-title"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Complete React Tutorial"
+                  placeholder={language === "en" ? "Complete React Tutorial" : "Пройти курс по React"}
                 />
               </div>
               <div>
@@ -251,7 +251,7 @@ export function AdminModeTasks() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="create-group">{t.group}</Label>
-                  <Select value={formData.group} onValueChange={(value) => setFormData({ ...formData, group: value })}>
+                  <Select value={formData.group} onValueChange={(value: string) => setFormData({ ...formData, group: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder={language === "en" ? "Select group" : "Выберите группу"} />
                     </SelectTrigger>

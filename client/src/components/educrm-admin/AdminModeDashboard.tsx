@@ -2,14 +2,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Progress } from "../ui/progress";
 import { Badge } from "../ui/badge";
 import { 
-  Users, 
-  GraduationCap, 
-  BookOpen, 
-  CheckCircle, 
-  TrendingUp, 
+  Users,
+  GraduationCap,
+  BookOpen,
+  CheckCircle,
+  TrendingUp,
   AlertTriangle,
-  UserCheck,
-  Target
+  UserCheck
 } from "lucide-react";
 import { useLanguage } from "../../lib/language-context";
 
@@ -25,7 +24,9 @@ export function AdminModeDashboard() {
     courses: language === "en" ? "Courses" : "Курсы",
     tasks: language === "en" ? "Tasks" : "Задачи",
     avgProgress: language === "en" ? "Average Course Progress" : "Средний прогресс по курсам",
+    acrossAllCourses: language === "en" ? "Across all courses" : "По всем курсам",
     weekActivity: language === "en" ? "Activity This Week" : "Активность за неделю",
+    thisWeek: language === "en" ? "this week" : "за неделю",
     recentActions: language === "en" ? "Recent Elder Actions" : "Последние действия старост",
     warnings: language === "en" ? "Warnings" : "Предупреждения",
     active: language === "en" ? "Active" : "Активных",
@@ -33,6 +34,13 @@ export function AdminModeDashboard() {
     emptyGroups: language === "en" ? "Empty groups found" : "Найдены пустые группы",
     lowProgress: language === "en" ? "Low course progress" : "Низкий прогресс курсов",
     missedDeadlines: language === "en" ? "Missed deadlines" : "Пропущенные дедлайны",
+    severityLow: language === "en" ? "Low" : "Низкий",
+    severityMedium: language === "en" ? "Medium" : "Средний",
+    severityHigh: language === "en" ? "High" : "Высокий",
+    severityCritical: language === "en" ? "Critical" : "Критичный",
+    weekDays: language === "en"
+      ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+      : ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
   };
 
   const stats = [
@@ -74,7 +82,7 @@ export function AdminModeDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-600">{stat.change}</span> за неделю
+                <span className="text-green-600">{stat.change}</span> {t.thisWeek}
               </p>
             </CardContent>
           </Card>
@@ -93,7 +101,7 @@ export function AdminModeDashboard() {
           <CardContent className="space-y-4">
             <div className="text-center">
               <div className="text-4xl font-bold">76%</div>
-              <p className="text-sm text-muted-foreground mt-1">По всем курсам</p>
+              <p className="text-sm text-muted-foreground mt-1">{t.acrossAllCourses}</p>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -158,7 +166,9 @@ export function AdminModeDashboard() {
                     <p className="text-xs text-muted-foreground">{warning.count} {language === "en" ? "items" : "элементов"}</p>
                   </div>
                   <Badge className={severityColors[warning.severity as keyof typeof severityColors]}>
-                    {warning.severity}
+                    {warning.severity === "low" ? t.severityLow :
+                     warning.severity === "medium" ? t.severityMedium :
+                     warning.severity === "high" ? t.severityHigh : t.severityCritical}
                   </Badge>
                 </div>
               );
@@ -178,7 +188,7 @@ export function AdminModeDashboard() {
               <div key={index} className="flex-1 flex flex-col items-center gap-2">
                 <div className="w-full bg-gradient-to-t from-purple-500 via-indigo-600 to-green-500 rounded-t-lg transition-all hover:opacity-80" style={{ height: `${height}%` }} />
                 <span className="text-xs text-muted-foreground">
-                  {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][index]}
+                  {t.weekDays[index]}
                 </span>
               </div>
             ))}

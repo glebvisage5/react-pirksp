@@ -6,7 +6,9 @@ client/Crm-ecosystem.wiki
 client/build
 client/tsconfig.tsbuildinfo
 .env
+.env.example
 CLAUDE.md
 PLAN.md
 /docs
 ROADMAP.md
+packages/shared/node_modules

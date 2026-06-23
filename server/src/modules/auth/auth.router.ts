@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as authService from "./auth.service";
 import { requireAuth } from "../../middleware/auth";
 import { AppError } from "../../middleware/errorHandler";
+import { decryptFields } from "../../utils/crypto";
 
 const router = Router();
 
@@ -78,14 +79,17 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
 
 router.get("/users/search", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const q = String(req.query["q"] ?? "").trim();
+    const q = String(req.query["q"] ?? "").trim().toLowerCase();
     if (q.length < 2) { res.json([]); return; }
     const { query } = await import("../../config/database");
-    const users = await query<{ id: string; name: string; email: string }>(
-      `SELECT id, name, email FROM users WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY name LIMIT 10`,
-      [`%${q}%`]
+    const allUsers = await query<{ id: string; name: string; email: string }>(
+      `SELECT id, name, email FROM users WHERE is_active = true`
     );
-    res.json(users);
+    const results = allUsers
+      .map((u) => decryptFields(u, ["name", "email"]))
+      .filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .slice(0, 10);
+    res.json(results);
   } catch (err) {
     next(err);
   }

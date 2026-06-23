@@ -1,0 +1,15 @@
+export const ENCRYPTED_FIELDS: Record<string, string[]> = {
+  users: ["email", "name", "bio", "avatar_url", "social_links"],
+  courses: ["title", "description"],
+  lessons: ["title", "duration"],
+  tasks: ["title", "description"],
+  groups: ["name"],
+  teams: ["name", "description"],
+  projects: ["title", "description"],
+  team_tasks: ["title", "description"],
+  specifications: ["title"],
+  team_roles: ["name"],
+  files: ["name", "storage_path", "folder"],
+  study_teams: ["name", "description"],
+  study_team_tasks: ["title", "description"],
+};

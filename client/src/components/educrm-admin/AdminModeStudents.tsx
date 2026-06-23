@@ -18,7 +18,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "../ui/dialog";
 import { Progress } from "../ui/progress";
 import { GraduationCap, Search, Eye, Award, CheckCircle } from "lucide-react";
@@ -60,6 +59,10 @@ export function AdminModeStudents() {
     completedTasks: language === "en" ? "Completed Tasks" : "Завершенные задачи",
     student: language === "en" ? "Student" : "Студент",
     elder: language === "en" ? "Elder" : "Староста",
+    achievement: language === "en" ? "Achievement" : "Достижение",
+    sampleCourses: language === "en"
+      ? ["React Fundamentals", "Advanced JavaScript", "Node.js Backend", "Database Design"]
+      : ["Основы React", "Продвинутый JavaScript", "Backend на Node.js", "Проектирование БД"],
   };
 
   const students: Student[] = [
@@ -215,7 +218,7 @@ export function AdminModeStudents() {
                     {[...Array(selectedStudent.achievements)].map((_, i) => (
                       <div key={i} className="flex flex-col items-center p-3 border rounded-lg">
                         <Award className="h-8 w-8 text-yellow-600 mb-2" />
-                        <span className="text-xs text-center">Achievement {i + 1}</span>
+                        <span className="text-xs text-center">{t.achievement} {i + 1}</span>
                       </div>
                     ))}
                   </div>
@@ -227,7 +230,7 @@ export function AdminModeStudents() {
                   <CardTitle>{t.courseProgress}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {["React Fundamentals", "Advanced JavaScript", "Node.js Backend", "Database Design"].map((course, index) => {
+                  {t.sampleCourses.map((course, index) => {
                     const progress = [92, 85, 78, 81][index];
                     return (
                       <div key={index} className="space-y-1">

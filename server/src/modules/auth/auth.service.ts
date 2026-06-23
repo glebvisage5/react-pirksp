@@ -6,6 +6,9 @@ import { query, queryOne } from "../../config/database";
 import { env } from "../../config/env";
 import { AppError } from "../../middleware/errorHandler";
 import type { JwtPayload } from "../../middleware/auth";
+import { encrypt, hmacHash, decryptFields } from "../../utils/crypto";
+
+const USER_ENCRYPTED_FIELDS = ["email", "name"] as const;
 
 interface User {
   id: string;
@@ -14,6 +17,10 @@ interface User {
   role: "user" | "admin";
   avatar_url: string | null;
   is_active: boolean;
+}
+
+function decryptUser<T>(row: T): T {
+  return decryptFields(row, [...USER_ENCRYPTED_FIELDS]);
 }
 
 function signAccess(payload: JwtPayload): string {
@@ -29,39 +36,46 @@ function signRefresh(payload: JwtPayload): string {
 }
 
 export async function register(name: string, email: string, password: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
-  const existing = await queryOne("SELECT id FROM users WHERE email = $1", [email]);
+  const emailHash = hmacHash(email);
+  const existing = await queryOne("SELECT id FROM users WHERE email_hash = $1", [emailHash]);
   if (existing) throw new AppError(409, "Email already registered");
 
   const hash = await bcrypt.hash(password, 12);
+  const encName = encrypt(name);
+  const encEmail = encrypt(email);
+
   const [user] = await query<User>(
-    "INSERT INTO users (id, name, email, password_hash) VALUES ($1,$2,$3,$4) RETURNING id, email, name, role, avatar_url, is_active",
-    [uuidv4(), name, email, hash]
+    "INSERT INTO users (id, name, email, email_hash, password_hash) VALUES ($1,$2,$3,$4,$5) RETURNING id, email, name, role, avatar_url, is_active",
+    [uuidv4(), encName, encEmail, emailHash, hash]
   );
 
-  const payload: JwtPayload = { userId: user.id, role: user.role };
+  const decrypted = decryptUser(user);
+  const payload: JwtPayload = { userId: decrypted.id, role: decrypted.role };
   const accessToken = signAccess(payload);
   const refreshToken = signRefresh(payload);
-  await storeRefreshToken(user.id, refreshToken);
+  await storeRefreshToken(decrypted.id, refreshToken);
 
-  return { user, accessToken, refreshToken };
+  return { user: decrypted, accessToken, refreshToken };
 }
 
 export async function login(email: string, password: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+  const emailHash = hmacHash(email);
   const user = await queryOne<User & { password_hash: string }>(
-    "SELECT id, email, name, role, avatar_url, is_active, password_hash FROM users WHERE email = $1",
-    [email]
+    "SELECT id, email, name, role, avatar_url, is_active, password_hash FROM users WHERE email_hash = $1",
+    [emailHash]
   );
   if (!user || !user.is_active) throw new AppError(401, "Invalid credentials");
 
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) throw new AppError(401, "Invalid credentials");
 
-  const payload: JwtPayload = { userId: user.id, role: user.role };
+  const decrypted = decryptUser(user);
+  const payload: JwtPayload = { userId: decrypted.id, role: decrypted.role };
   const accessToken = signAccess(payload);
   const refreshToken = signRefresh(payload);
-  await storeRefreshToken(user.id, refreshToken);
+  await storeRefreshToken(decrypted.id, refreshToken);
 
-  const { password_hash: _, ...safeUser } = user;
+  const { password_hash: _, ...safeUser } = decrypted;
   return { user: safeUser as User, accessToken, refreshToken };
 }
 
@@ -101,7 +115,7 @@ export async function getMe(userId: string): Promise<User> {
     [userId]
   );
   if (!user) throw new AppError(404, "User not found");
-  return user;
+  return decryptUser(user);
 }
 
 async function storeRefreshToken(userId: string, token: string): Promise<void> {

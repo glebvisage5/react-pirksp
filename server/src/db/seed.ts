@@ -2,6 +2,7 @@ import "../config/env";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "../config/database";
+import { encrypt, hmacHash } from "../utils/crypto";
 
 async function seed() {
   const client = await pool.connect();
@@ -26,13 +27,15 @@ async function seed() {
 
     const idMap: Record<string, string> = {};
     for (const u of users) {
+      const emailHash = hmacHash(u.email);
+      const encEmail = encrypt(u.email);
+      const encName = encrypt(u.name);
       await client.query(`
-        INSERT INTO users (id, email, password_hash, name, role)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role
-      `, [u.id, u.email, u.hash, u.name, u.role]);
-      // read back actual id (may differ if row already existed)
-      const row = await client.query<{ id: string }>(`SELECT id FROM users WHERE email = $1`, [u.email]);
+        INSERT INTO users (id, email, email_hash, password_hash, name, role)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (email_hash) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role
+      `, [u.id, encEmail, emailHash, u.hash, encName, u.role]);
+      const row = await client.query<{ id: string }>(`SELECT id FROM users WHERE email_hash = $1`, [emailHash]);
       idMap[u.email] = row.rows[0]!.id;
     }
     const actualAdminId = idMap["admin@example.com"]!;
@@ -55,8 +58,7 @@ async function seed() {
         INSERT INTO teams (id, name, description, owner_id)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT DO NOTHING
-      `, [t.id, t.name, t.desc, t.ownerId]);
-      // owner as Team Leader
+      `, [t.id, encrypt(t.name), encrypt(t.desc), t.ownerId]);
       await client.query(`
         INSERT INTO team_members (team_id, user_id, role)
         VALUES ($1, $2, 'Team Leader')
@@ -64,7 +66,6 @@ async function seed() {
       `, [t.id, t.ownerId]);
     }
 
-    // Add members to teams
     const members = [
       { teamId: team1Id, userId: actualUser2Id, role: "Moderator" },
       { teamId: team1Id, userId: actualUser3Id, role: "Member" },
@@ -96,7 +97,7 @@ async function seed() {
         INSERT INTO projects (id, team_id, title, description, status, start_date, end_date)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT DO NOTHING
-      `, [p.id, p.teamId, p.title, p.desc, p.status, p.start, p.end]);
+      `, [p.id, p.teamId, encrypt(p.title), encrypt(p.desc), p.status, p.start, p.end]);
     }
     console.log("✓ Projects seeded");
 
@@ -115,7 +116,7 @@ async function seed() {
         INSERT INTO team_tasks (id, team_id, project_id, title, status, priority, assignee_id, due_date)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT DO NOTHING
-      `, [t.id, t.teamId, t.projectId, t.title, t.status, t.priority, t.assigneeId, t.due]);
+      `, [t.id, t.teamId, t.projectId, encrypt(t.title), t.status, t.priority, t.assigneeId, t.due]);
     }
     console.log("✓ Team tasks seeded");
 
@@ -132,7 +133,7 @@ async function seed() {
       INSERT INTO specifications (id, team_id, project_id, title, blocks, created_by)
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT DO NOTHING
-    `, [spec1Id, team1Id, proj1Id, "Landing Page Requirements v1.0", JSON.stringify(blocks), actualUser1Id]);
+    `, [spec1Id, team1Id, proj1Id, encrypt("Landing Page Requirements v1.0"), JSON.stringify(blocks), actualUser1Id]);
     console.log("✓ Specifications seeded");
 
     // ─── Courses (EduCRM) ─────────────────────────────────────────────────────
@@ -143,15 +144,14 @@ async function seed() {
       INSERT INTO courses (id, title, description, instructor_id, difficulty, thumbnail_emoji)
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT DO NOTHING
-    `, [course1Id, "Introduction to React", "Learn React fundamentals from scratch", actualAdminId, "beginner", "⚛️"]);
+    `, [course1Id, encrypt("Introduction to React"), encrypt("Learn React fundamentals from scratch"), actualAdminId, "beginner", "⚛️"]);
 
     await client.query(`
       INSERT INTO courses (id, title, description, instructor_id, difficulty, thumbnail_emoji)
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT DO NOTHING
-    `, [course2Id, "Node.js Backend Development", "Build REST APIs with Express and PostgreSQL", actualAdminId, "intermediate", "🟢"]);
+    `, [course2Id, encrypt("Node.js Backend Development"), encrypt("Build REST APIs with Express and PostgreSQL"), actualAdminId, "intermediate", "🟢"]);
 
-    // Enroll users in courses
     for (const userId of [actualUser1Id, actualUser2Id, actualUser3Id]) {
       await client.query(`
         INSERT INTO user_course_progress (user_id, course_id)

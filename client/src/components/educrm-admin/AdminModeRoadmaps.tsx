@@ -22,7 +22,6 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "../ui/dialog";
-import { Textarea } from "../ui/textarea";
 import { MapPin, Plus, Edit, Trash2, Search, Calendar, CheckCircle } from "lucide-react";
 import { useLanguage } from "../../lib/language-context";
 
@@ -76,10 +75,10 @@ export function AdminModeRoadmaps() {
   };
 
   const [roadmaps, setRoadmaps] = useState<Roadmap[]>([
-    { id: "1", name: "Frontend Developer Path", course: "React Fundamentals", stages: 8, completedStages: 6, deadline: "2024-12-31", status: "active" },
-    { id: "2", name: "Backend Mastery", course: "Node.js Backend", stages: 10, completedStages: 4, deadline: "2025-01-15", status: "active" },
-    { id: "3", name: "Data Science Journey", course: "Python Basics", stages: 12, completedStages: 12, deadline: "2024-11-30", status: "completed" },
-    { id: "4", name: "Full Stack Developer", course: "Advanced JavaScript", stages: 15, completedStages: 0, deadline: "2025-03-01", status: "pending" },
+    { id: "1", name: "Путь Frontend-разработчика", course: "React Fundamentals", stages: 8, completedStages: 6, deadline: "2024-12-31", status: "active" },
+    { id: "2", name: "Мастерство Backend", course: "Node.js Backend", stages: 10, completedStages: 4, deadline: "2025-01-15", status: "active" },
+    { id: "3", name: "Путь в Data Science", course: "Python Basics", stages: 12, completedStages: 12, deadline: "2024-11-30", status: "completed" },
+    { id: "4", name: "Full Stack разработчик", course: "Advanced JavaScript", stages: 15, completedStages: 0, deadline: "2025-03-01", status: "pending" },
   ]);
 
   const filteredRoadmaps = roadmaps.filter(roadmap =>
@@ -160,7 +159,7 @@ export function AdminModeRoadmaps() {
                   id="create-name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Frontend Developer Path"
+                  placeholder={language === "en" ? "Frontend Developer Path" : "Путь Frontend-разработчика"}
                 />
               </div>
               <div>
@@ -169,7 +168,7 @@ export function AdminModeRoadmaps() {
                   id="create-course"
                   value={formData.course}
                   onChange={(e) => setFormData({ ...formData, course: e.target.value })}
-                  placeholder="React Fundamentals"
+                  placeholder={language === "en" ? "React Fundamentals" : "Название курса"}
                 />
               </div>
               <div>

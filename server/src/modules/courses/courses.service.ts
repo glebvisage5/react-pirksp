@@ -1,9 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { query, queryOne } from "../../config/database";
 import { AppError } from "../../middleware/errorHandler";
+import { encrypt, decryptFields } from "../../utils/crypto";
+
+const COURSE_FIELDS = ["title", "description"];
+const LESSON_FIELDS = ["title", "duration"];
 
 export async function listCourses(userId: string) {
-  return query(`
+  const rows = await query(`
     SELECT
       c.*,
       u.name AS instructor_name,
@@ -25,10 +29,11 @@ export async function listCourses(userId: string) {
     GROUP BY c.id, u.name, ucp.enrolled_at
     ORDER BY c.created_at DESC
   `, [userId]);
+  return rows.map(r => decryptFields(r, [...COURSE_FIELDS, "instructor_name"]));
 }
 
 export async function enrolledCourses(userId: string, limit: number) {
-  return query(`
+  const rows = await query(`
     SELECT
       c.*,
       u.name AS instructor_name,
@@ -52,6 +57,7 @@ export async function enrolledCourses(userId: string, limit: number) {
     ORDER BY ucp.enrolled_at DESC
     LIMIT $2
   `, [userId, limit]);
+  return rows.map(r => decryptFields(r, [...COURSE_FIELDS, "instructor_name"]));
 }
 
 export async function getCourse(courseId: string, userId: string) {
@@ -64,16 +70,18 @@ export async function getCourse(courseId: string, userId: string) {
     WHERE c.id = $1
   `, [courseId, userId]);
   if (!course) throw new AppError(404, "Course not found");
-  return course;
+  return decryptFields(course, [...COURSE_FIELDS, "instructor_name"]);
 }
 
 export async function createCourse(data: Record<string, unknown>, instructorId: string) {
+  const encTitle = data["title"] != null ? encrypt(data["title"] as string) : null;
+  const encDesc = data["description"] != null ? encrypt(data["description"] as string) : null;
   const [course] = await query(`
     INSERT INTO courses (id, title, description, instructor_id, difficulty, is_ai_powered, thumbnail_emoji)
     VALUES ($1,$2,$3,$4,$5,$6,$7)
     RETURNING *
-  `, [uuidv4(), data["title"], data["description"] ?? null, instructorId, data["difficulty"], data["is_ai_powered"], data["thumbnail_emoji"]]);
-  return course;
+  `, [uuidv4(), encTitle, encDesc, instructorId, data["difficulty"], data["is_ai_powered"], data["thumbnail_emoji"]]);
+  return decryptFields(course, COURSE_FIELDS);
 }
 
 export async function updateCourse(courseId: string, data: Record<string, unknown>) {
@@ -82,8 +90,12 @@ export async function updateCourse(courseId: string, data: Record<string, unknow
   let idx = 1;
   for (const [key, val] of Object.entries(data)) {
     if (val !== undefined) {
+      let actual = val;
+      if ((key === "title" || key === "description") && actual != null) {
+        actual = encrypt(actual as string);
+      }
       fields.push(`${key} = $${idx++}`);
-      values.push(val);
+      values.push(actual);
     }
   }
   if (fields.length === 0) throw new AppError(400, "Nothing to update");
@@ -93,7 +105,7 @@ export async function updateCourse(courseId: string, data: Record<string, unknow
     values
   );
   if (!course) throw new AppError(404, "Course not found");
-  return course;
+  return decryptFields(course, COURSE_FIELDS);
 }
 
 export async function deleteCourse(courseId: string) {
@@ -112,7 +124,7 @@ export async function enrollCourse(courseId: string, userId: string) {
 }
 
 export async function getLessons(courseId: string, userId: string) {
-  return query(`
+  const rows = await query(`
     SELECT l.*,
       COALESCE(ulp.completed, false) AS completed
     FROM lessons l
@@ -120,22 +132,25 @@ export async function getLessons(courseId: string, userId: string) {
     WHERE l.course_id = $1
     ORDER BY l.order_index ASC
   `, [courseId, userId]);
+  return rows.map(r => decryptFields(r, LESSON_FIELDS));
 }
 
 export async function createLesson(courseId: string, data: Record<string, unknown>) {
+  const encTitle = data["title"] != null ? encrypt(data["title"] as string) : null;
+  const encDuration = data["duration"] != null ? encrypt(data["duration"] as string) : null;
   const [lesson] = await query(`
     INSERT INTO lessons (id, course_id, title, type, duration, order_index, content, is_locked)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
     RETURNING *
   `, [
     uuidv4(), courseId,
-    data["title"], data["type"] ?? "video",
-    data["duration"] ?? null,
+    encTitle, data["type"] ?? "video",
+    encDuration,
     data["order_index"] ?? 0,
     JSON.stringify(data["content"] ?? {}),
     data["is_locked"] ?? false,
   ]);
-  return lesson;
+  return decryptFields(lesson, LESSON_FIELDS);
 }
 
 export async function updateLesson(lessonId: string, data: Record<string, unknown>) {
@@ -144,8 +159,12 @@ export async function updateLesson(lessonId: string, data: Record<string, unknow
   let idx = 1;
   for (const [key, val] of Object.entries(data)) {
     if (val !== undefined) {
+      let actual = key === "content" ? JSON.stringify(val) : val;
+      if ((key === "title" || key === "duration") && actual != null) {
+        actual = encrypt(actual as string);
+      }
       fields.push(`${key} = $${idx++}`);
-      values.push(key === "content" ? JSON.stringify(val) : val);
+      values.push(actual);
     }
   }
   if (fields.length === 0) throw new AppError(400, "Nothing to update");
@@ -155,7 +174,7 @@ export async function updateLesson(lessonId: string, data: Record<string, unknow
     values
   );
   if (!lesson) throw new AppError(404, "Lesson not found");
-  return lesson;
+  return decryptFields(lesson, LESSON_FIELDS);
 }
 
 export async function deleteLesson(lessonId: string) {

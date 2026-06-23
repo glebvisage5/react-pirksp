@@ -1,5 +1,8 @@
 import { query, queryOne } from "../../config/database";
 import { AppError } from "../../middleware/errorHandler";
+import { encrypt, decrypt, decryptFields } from "../../utils/crypto";
+
+const ENCRYPTED_FIELDS = ["name", "email", "bio", "avatar_url"];
 
 export interface SocialLink {
   platform: string;
@@ -12,9 +15,23 @@ interface ProfileUser {
   email: string;
   avatar_url: string | null;
   bio: string | null;
-  social_links: SocialLink[];
+  social_links: string | null;
   role: string;
   created_at: string;
+}
+
+function decryptUser(row: ProfileUser): Omit<ProfileUser, "social_links"> & { social_links: SocialLink[] } {
+  const decrypted = decryptFields(row, ENCRYPTED_FIELDS);
+  let links: SocialLink[] = [];
+  if (decrypted.social_links) {
+    try {
+      const raw = decrypt(decrypted.social_links);
+      links = JSON.parse(raw);
+    } catch {
+      try { links = JSON.parse(decrypted.social_links); } catch { /* empty */ }
+    }
+  }
+  return { ...decrypted, social_links: links };
 }
 
 export async function getProfile(userId: string) {
@@ -33,7 +50,7 @@ export async function getProfile(userId: string) {
     ORDER BY st.created_at DESC
   `, [userId]);
 
-  return { ...user, projects };
+  return { ...decryptUser(user), projects };
 }
 
 export async function updateProfile(
@@ -44,9 +61,12 @@ export async function updateProfile(
   const values: unknown[] = [];
   let idx = 1;
 
-  if (data.name !== undefined) { fields.push(`name = $${idx++}`); values.push(data.name); }
-  if (data.bio !== undefined) { fields.push(`bio = $${idx++}`); values.push(data.bio); }
-  if (data.social_links !== undefined) { fields.push(`social_links = $${idx++}`); values.push(JSON.stringify(data.social_links)); }
+  if (data.name !== undefined) { fields.push(`name = $${idx++}`); values.push(encrypt(data.name)); }
+  if (data.bio !== undefined) { fields.push(`bio = $${idx++}`); values.push(data.bio ? encrypt(data.bio) : null); }
+  if (data.social_links !== undefined) {
+    fields.push(`social_links = $${idx++}`);
+    values.push(encrypt(JSON.stringify(data.social_links)));
+  }
 
   if (!fields.length) throw new AppError(400, "Nothing to update");
 

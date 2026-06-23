@@ -1,6 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
 import { query, queryOne } from "../../config/database";
 import { AppError } from "../../middleware/errorHandler";
+import { encrypt, decryptFields } from "../../utils/crypto";
+
+const TEAM_FIELDS = ["name", "description"];
+const TASK_FIELDS = ["title", "description"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,8 +20,6 @@ async function getMyGroupId(userId: string): Promise<string | null> {
   return row?.group_id ?? null;
 }
 
-// Проверяет, что пользователь состоит в той же группе, что и учебная команда
-// (или является системным админом). Бросает 404, если команда не найдена.
 async function assertGroupAccess(teamId: string, userId: string): Promise<{ group_id: string }> {
   const team = await queryOne<{ group_id: string }>("SELECT group_id FROM study_teams WHERE id = $1", [teamId]);
   if (!team) throw new AppError(404, "Study team not found");
@@ -31,7 +33,7 @@ async function assertGroupAccess(teamId: string, userId: string): Promise<{ grou
 
 export async function listMyStudyTeams(userId: string) {
   if (await isSystemAdmin(userId)) {
-    return query(`
+    const rows = await query(`
       SELECT st.*,
         (SELECT COUNT(*)::int FROM study_team_members WHERE team_id = st.id) AS member_count,
         (SELECT COUNT(*)::int FROM study_team_tasks WHERE team_id = st.id) AS task_count,
@@ -39,10 +41,11 @@ export async function listMyStudyTeams(userId: string) {
       FROM study_teams st
       ORDER BY st.created_at DESC
     `, []);
+    return rows.map(r => decryptFields(r, TEAM_FIELDS));
   }
   const groupId = await getMyGroupId(userId);
   if (!groupId) return [];
-  return query(`
+  const rows = await query(`
     SELECT st.*,
       (SELECT COUNT(*)::int FROM study_team_members WHERE team_id = st.id) AS member_count,
       (SELECT COUNT(*)::int FROM study_team_tasks WHERE team_id = st.id) AS task_count,
@@ -51,6 +54,7 @@ export async function listMyStudyTeams(userId: string) {
     WHERE st.group_id = $1
     ORDER BY st.created_at DESC
   `, [groupId]);
+  return rows.map(r => decryptFields(r, TEAM_FIELDS));
 }
 
 export async function getStudyTeam(teamId: string, userId: string) {
@@ -63,17 +67,20 @@ export async function getStudyTeam(teamId: string, userId: string) {
     WHERE st.id = $1
   `, [teamId]);
   if (!team) throw new AppError(404, "Study team not found");
+  const decrypted = decryptFields(team, TEAM_FIELDS);
   const members = await listMembers(teamId);
-  return { ...team, members };
+  return { ...decrypted, members };
 }
 
 export async function createStudyTeam(userId: string, name: string, description: string | undefined) {
   const groupId = await getMyGroupId(userId);
   if (!groupId) throw new AppError(400, "You are not a member of any group");
   const teamId = uuidv4();
+  const encName = encrypt(name);
+  const encDesc = description != null ? encrypt(description) : null;
   await query(
     "INSERT INTO study_teams (id, group_id, name, description, created_by) VALUES ($1,$2,$3,$4,$5)",
-    [teamId, groupId, name, description ?? null, userId]
+    [teamId, groupId, encName, encDesc, userId]
   );
   await query(
     "INSERT INTO study_team_members (team_id, user_id) VALUES ($1,$2)",
@@ -85,13 +92,14 @@ export async function createStudyTeam(userId: string, name: string, description:
 // ─── Members ──────────────────────────────────────────────────────────────────
 
 export async function listMembers(teamId: string) {
-  return query(`
+  const rows = await query(`
     SELECT u.id, u.name, u.email, u.avatar_url, stm.joined_at
     FROM study_team_members stm
     JOIN users u ON u.id = stm.user_id
     WHERE stm.team_id = $1
     ORDER BY u.name ASC
   `, [teamId]);
+  return rows.map(r => decryptFields(r, ["name", "email"]));
 }
 
 export async function addMember(teamId: string, memberId: string, requesterId: string) {
@@ -113,22 +121,25 @@ export async function removeMember(teamId: string, memberId: string, requesterId
 
 export async function listTasks(teamId: string, userId: string) {
   await assertGroupAccess(teamId, userId);
-  return query(`
+  const rows = await query(`
     SELECT stt.*, u.name AS assignee_name
     FROM study_team_tasks stt
     LEFT JOIN users u ON u.id = stt.assignee_id
     WHERE stt.team_id = $1
     ORDER BY stt.due_date ASC NULLS LAST, stt.created_at DESC
   `, [teamId]);
+  return rows.map(r => decryptFields(r, [...TASK_FIELDS, "assignee_name"]));
 }
 
 export async function createTask(teamId: string, data: Record<string, unknown>, userId: string) {
   await assertGroupAccess(teamId, userId);
+  const encTitle = encrypt(data["title"] as string);
+  const encDesc = data["description"] != null ? encrypt(data["description"] as string) : null;
   const [task] = await query(
     "INSERT INTO study_team_tasks (id, team_id, title, description, status, assignee_id, due_date) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
-    [uuidv4(), teamId, data["title"], data["description"] ?? null, data["status"] ?? "todo", data["assignee_id"] ?? null, data["due_date"] ?? null]
+    [uuidv4(), teamId, encTitle, encDesc, data["status"] ?? "todo", data["assignee_id"] ?? null, data["due_date"] ?? null]
   );
-  return task;
+  return decryptFields(task, TASK_FIELDS);
 }
 
 export async function updateTask(taskId: string, data: Record<string, unknown>, userId: string) {
@@ -137,9 +148,18 @@ export async function updateTask(taskId: string, data: Record<string, unknown>, 
   await assertGroupAccess(task.team_id, userId);
   const allowed = ["title", "description", "status", "assignee_id", "due_date"];
   const fields: string[] = []; const values: unknown[] = []; let idx = 1;
-  for (const k of allowed) { if (data[k] !== undefined) { fields.push(`${k} = $${idx++}`); values.push(data[k]); } }
+  for (const k of allowed) {
+    if (data[k] !== undefined) {
+      let value = data[k];
+      if ((k === "title" || k === "description") && value != null) {
+        value = encrypt(value as string);
+      }
+      fields.push(`${k} = $${idx++}`);
+      values.push(value);
+    }
+  }
   if (!fields.length) throw new AppError(400, "Nothing to update");
   values.push(taskId);
   const [updated] = await query(`UPDATE study_team_tasks SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, values);
-  return updated;
+  return decryptFields(updated, TASK_FIELDS);
 }
