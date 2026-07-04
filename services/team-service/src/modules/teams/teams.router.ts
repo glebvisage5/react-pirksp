@@ -65,7 +65,7 @@ function validate<T>(schema: z.ZodSchema<T>, body: unknown, next: NextFunction):
 
 // ─── Teams ────────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try { res.json(await svc.listTeams(req.user!.userId, req.user!.role === "admin")); } catch (e) { next(e); }
+  try { const isAdmin = req.user!.role === "admin" || req.user!.role === "owner"; res.json(await svc.listTeams(req.user!.userId, isAdmin)); } catch (e) { next(e); }
 });
 
 router.post("/", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
@@ -74,7 +74,7 @@ router.post("/", requireAuth, async (req: Request, res: Response, next: NextFunc
 });
 
 router.get("/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try { res.json(await svc.getTeam(req.params["id"]!, req.user!.userId, req.user!.role === "admin")); } catch (e) { next(e); }
+  try { const isAdmin = req.user!.role === "admin" || req.user!.role === "owner"; res.json(await svc.getTeam(req.params["id"]!, req.user!.userId, isAdmin)); } catch (e) { next(e); }
 });
 
 router.put("/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {

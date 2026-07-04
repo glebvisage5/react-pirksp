@@ -13,7 +13,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "owner";
   avatar_url: string | null;
   is_active: boolean;
 }

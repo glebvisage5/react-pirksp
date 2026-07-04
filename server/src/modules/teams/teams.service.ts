@@ -410,7 +410,7 @@ async function getMemberRole(teamId: string, userId: string): Promise<string | n
 
 async function isSystemAdmin(userId: string): Promise<boolean> {
   const row = await queryOne<{ role: string }>("SELECT role FROM users WHERE id = $1", [userId]);
-  return row?.role === "admin";
+  return row?.role === "admin" || row?.role === "owner";
 }
 
 async function assertRole(teamId: string, userId: string, allowed: string[]) {

@@ -21,7 +21,7 @@ export interface UserProfile {
   avatar_url: string | null;
   bio: string | null;
   social_links: SocialLink[];
-  role: "user" | "admin";
+  role: "user" | "admin" | "owner";
   created_at: string;
   projects: ProfileProject[];
 }

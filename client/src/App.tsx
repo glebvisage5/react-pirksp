@@ -25,6 +25,11 @@ import { Settings } from "./components/dashboard/Settings";
 import { Courses } from "./components/dashboard/Courses";
 import { NotificationsDropdown } from "./components/dashboard/Notifications";
 import AdminCenter from "./components/admin/AdminCenter";
+import { GtaRoleplay } from "./components/gta-roleplay/GtaRoleplay";
+import { GtaDashboard } from "./components/gta-roleplay/GtaDashboard";
+import { GtaServers } from "./components/gta-roleplay/GtaServers";
+import { GtaServerDetail } from "./components/gta-roleplay/GtaServerDetail";
+import { GtaOrgDetail } from "./components/gta-roleplay/GtaOrgDetail";
 import { AdminModeDashboard } from "./components/educrm-admin/AdminModeDashboard";
 import { AdminModeGroups } from "./components/educrm-admin/AdminModeGroups";
 import { AdminModeStudents } from "./components/educrm-admin/AdminModeStudents";
@@ -106,6 +111,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RequireOwner({ children }: { children: React.ReactNode }) {
+  const { user, isOwner, isLoading } = useUser();
+  if (isLoading) return null;
+  if (!user || !isOwner) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 // ─── Page wrappers ─────────────────────────────────────────────
 
 function CompanyPage() {
@@ -119,6 +131,7 @@ function CompanyPage() {
         if (id === "educrm") navigate("/educrm");
         else if (id === "teamhub") navigate("/teamhub");
         else if (id === "admin-center") navigate("/admin-center");
+        else if (id === "gta-rp") navigate("/gta-rp");
       }}
       isAuthenticated={!!user}
     />
@@ -370,6 +383,14 @@ function AppRoutes() {
         <Route path="admin/files" element={<AdminModeFiles />} />
         <Route path="admin/roles" element={<AdminModeRoles />} />
         <Route path="admin/settings" element={<AdminModeSettings />} />
+      </Route>
+
+      <Route path="/gta-rp" element={<RequireOwner><GtaRoleplay /></RequireOwner>}>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<GtaDashboard />} />
+        <Route path="servers" element={<GtaServers />} />
+        <Route path="servers/:serverId" element={<GtaServerDetail />} />
+        <Route path="servers/:serverId/orgs/:orgId" element={<GtaOrgDetail />} />
       </Route>
 
       <Route path="/teamhub" element={<RequireAuth><TeamHubPage /></RequireAuth>} />

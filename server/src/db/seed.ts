@@ -10,15 +10,18 @@ async function seed() {
     await client.query("BEGIN");
 
     // ─── Users ────────────────────────────────────────────────────────────────
+    const ownerId = uuidv4();
     const adminId = uuidv4();
     const user1Id = uuidv4();
     const user2Id = uuidv4();
     const user3Id = uuidv4();
 
+    const ownerHash = await bcrypt.hash("Owner123!", 12);
     const adminHash = await bcrypt.hash("Admin123!", 12);
     const userHash = await bcrypt.hash("User123!", 12);
 
     const users = [
+      { id: ownerId,  email: "owner@example.com",  name: "Platform Owner", role: "owner", hash: ownerHash },
       { id: adminId,  email: "admin@example.com",  name: "Admin User",   role: "admin",  hash: adminHash },
       { id: user1Id,  email: "alice@example.com",   name: "Alice Johnson", role: "user",  hash: userHash },
       { id: user2Id,  email: "bob@example.com",     name: "Bob Smith",    role: "user",  hash: userHash },
@@ -165,6 +168,7 @@ async function seed() {
 
     console.log("\n✅ Seed complete!");
     console.log("\nTest accounts:");
+    console.log("  owner@example.com  / Owner123!  (owner — full platform access)");
     console.log("  admin@example.com  / Admin123!  (admin)");
     console.log("  alice@example.com  / User123!   (user — Team Leader in Frontend Dev)");
     console.log("  bob@example.com    / User123!   (user — Moderator in Frontend Dev)");

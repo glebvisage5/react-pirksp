@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { query, queryOne } from "../../config/database";
 import { env } from "../../config/env";
 import { AppError } from "../../middleware/errorHandler";
-import type { JwtPayload } from "../../middleware/auth";
+import type { JwtPayload, PlatformRole } from "../../middleware/auth";
 import { encrypt, hmacHash, decryptFields } from "../../utils/crypto";
 
 const USER_ENCRYPTED_FIELDS = ["email", "name"] as const;
@@ -14,7 +14,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: "user" | "admin";
+  role: PlatformRole;
   avatar_url: string | null;
   is_active: boolean;
 }

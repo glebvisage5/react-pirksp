@@ -56,7 +56,7 @@ router.post("/", requireAuth, async (req: Request, res: Response, next: NextFunc
 
 router.put("/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const isAdmin = req.user!.role === "admin";
+    const isAdmin = req.user!.role === "admin" || req.user!.role === "owner";
     const task = await svc.updateTask(req.params["id"]!, req.body, req.user!.userId, isAdmin);
     res.json(task);
   } catch (err) { next(err); }

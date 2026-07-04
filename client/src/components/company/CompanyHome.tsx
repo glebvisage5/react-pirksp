@@ -72,9 +72,8 @@ export function CompanyHome({ onLogin, onServiceSelect, isAuthenticated }: Compa
         duration: 3000,
         className: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
       });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Ошибка входа";
-      toast.error(msg, {
+    } catch {
+      toast.error(language === "en" ? "Incorrect email or password" : "Неверно введён логин или пароль", {
         duration: 3000,
         className: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
       });

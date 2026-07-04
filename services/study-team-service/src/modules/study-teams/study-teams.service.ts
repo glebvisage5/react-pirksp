@@ -4,7 +4,7 @@ import { AppError } from "@ecosystem/shared";
 
 async function isSystemAdmin(userId: string): Promise<boolean> {
   const row = await queryOne<{ role: string }>("SELECT role FROM users WHERE id = $1", [userId]);
-  return row?.role === "admin";
+  return row?.role === "admin" || row?.role === "owner";
 }
 
 async function getMyGroupId(userId: string): Promise<string | null> {

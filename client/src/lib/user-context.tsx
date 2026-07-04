@@ -1,11 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { apiGetMe, apiLogout } from "../api/auth";
 
+export type PlatformRole = "user" | "admin" | "owner";
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: "user" | "admin";
+  role: PlatformRole;
   avatar_url?: string | null;
 }
 
@@ -15,6 +17,7 @@ interface UserContextType {
   user: User | null;
   setUser: (user: User | null) => void;
   isAdmin: boolean;
+  isOwner: boolean;
   userMode: UserMode;
   setUserMode: (mode: UserMode) => void;
   logout: () => Promise<void>;
@@ -56,10 +59,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUserMode("user");
   };
 
-  const isAdmin = user?.role === "admin";
+  const isOwner = user?.role === "owner";
+  const isAdmin = user?.role === "admin" || isOwner;
 
   return (
-    <UserContext.Provider value={{ user, setUser, isAdmin, userMode, setUserMode, logout, isLoading }}>
+    <UserContext.Provider value={{ user, setUser, isAdmin, isOwner, userMode, setUserMode, logout, isLoading }}>
       {children}
     </UserContext.Provider>
   );

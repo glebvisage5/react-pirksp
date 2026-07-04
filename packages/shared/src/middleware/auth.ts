@@ -30,11 +30,17 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   }
 }
 
-export function requireRole(...roles: Array<"user" | "admin">) {
+export function requireRole(...roles: Array<"user" | "admin" | "owner">) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return next(new AppError(403, "Forbidden"));
-    }
-    next();
+    if (!req.user) return next(new AppError(403, "Forbidden"));
+    if (req.user.role === "owner" || roles.includes(req.user.role)) return next();
+    return next(new AppError(403, "Forbidden"));
   };
+}
+
+export function requireOwner(req: Request, _res: Response, next: NextFunction): void {
+  if (!req.user || req.user.role !== "owner") {
+    return next(new AppError(403, "Forbidden"));
+  }
+  next();
 }

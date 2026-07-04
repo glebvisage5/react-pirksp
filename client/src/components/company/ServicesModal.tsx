@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Card } from "../ui/card";
-import { GraduationCap, BarChart3, Users, ShoppingCart, ArrowRight, Sparkles, Shield } from "lucide-react";
+import { GraduationCap, BarChart3, Users, ShoppingCart, ArrowRight, Sparkles, Shield, Gamepad2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { useUser } from "../../lib/user-context";
@@ -13,6 +13,7 @@ interface Service {
   descriptionRu: string;
   icon: React.ReactNode;
   color: string;
+  iconStyle?: React.CSSProperties;
   status: "active" | "coming-soon";
   statusRu: string;
 }
@@ -73,7 +74,7 @@ interface ServicesModalProps {
 }
 
 export function ServicesModal({ isOpen, onClose, onSelectService, onContactUs, language }: ServicesModalProps) {
-  const { isAdmin } = useUser();
+  const { isAdmin, isOwner } = useUser();
   
   const t = {
     title: language === "en" ? "Choose Your Service" : "Выберите сервис",
@@ -94,8 +95,24 @@ export function ServicesModal({ isOpen, onClose, onSelectService, onContactUs, l
     statusRu: "Доступно"
   };
   
-  // Объединяем сервисы - админский сервис первым для админов
-  const displayedServices = isAdmin ? [adminService, ...services] : services;
+  const ownerService: Service = {
+    id: "gta-rp",
+    name: "GTA RolePlay",
+    nameRu: "GTA RolePlay",
+    description: "GTA V RolePlay server management and constructor platform",
+    descriptionRu: "Платформа управления серверами GTA V RolePlay с конструктором",
+    icon: <Gamepad2 className="w-8 h-8" />,
+    color: "",
+    iconStyle: { background: 'linear-gradient(135deg, #e0015b, #f43f5e, #f472b6)' },
+    status: "active",
+    statusRu: "Доступно"
+  };
+
+  const displayedServices = [
+    ...(isOwner ? [ownerService] : []),
+    ...(isAdmin ? [adminService] : []),
+    ...services,
+  ];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -128,10 +145,12 @@ export function ServicesModal({ isOpen, onClose, onSelectService, onContactUs, l
               <div className="flex flex-col gap-4">
                 {/* Icon with gradient background */}
                 <div className={`
-                  w-16 h-16 rounded-xl bg-gradient-to-br ${service.color} 
+                  w-16 h-16 rounded-xl ${service.iconStyle ? '' : `bg-gradient-to-br ${service.color}`}
                   flex items-center justify-center text-white
                   shadow-lg transition-all
-                `}>
+                `}
+                  style={service.iconStyle}
+                >
                   {service.icon}
                 </div>
 

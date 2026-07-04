@@ -1,10 +1,12 @@
 import { api } from "./client";
 
+export type PlatformRole = "user" | "admin" | "owner";
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: "user" | "admin";
+  role: PlatformRole;
   avatar_url: string | null;
 }
 
