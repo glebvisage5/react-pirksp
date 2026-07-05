@@ -17,12 +17,17 @@ import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "../../api/client";
+import { gtaIconUrl, isGtaIconImage } from "../../api/gta";
+import { IconPicker } from "./IconPicker";
+import { LinkifiedText } from "./LinkifiedText";
+import { useGtaViewMode } from "./GtaViewModeContext";
 
 interface OrgData {
   id: string;
   server_id: string;
   name: string;
   description: string | null;
+  full_description: string | null;
   icon: string;
 }
 
@@ -55,6 +60,8 @@ export function GtaOrgDetail() {
   const { serverId, orgId } = useParams<{ serverId: string; orgId: string }>();
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const { viewMode } = useGtaViewMode();
+  const isPlayer = viewMode === "player";
   const [org, setOrg] = useState<OrgData | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -67,7 +74,7 @@ export function GtaOrgDetail() {
   const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
   const [sectionForm, setSectionForm] = useState({ type: "text" as string, title: "" });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsForm, setSettingsForm] = useState({ name: "", description: "", icon: "" });
+  const [settingsForm, setSettingsForm] = useState({ name: "", description: "", full_description: "", icon: "" });
   const [deleteTabConfirm, setDeleteTabConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteOrgConfirm, setDeleteOrgConfirm] = useState(false);
   const [deleteSectionConfirm, setDeleteSectionConfirm] = useState<{ id: string; title: string } | null>(null);
@@ -87,12 +94,16 @@ export function GtaOrgDetail() {
     cancel: language === "en" ? "Cancel" : "Отмена",
     delete: language === "en" ? "Delete" : "Удалить",
     maxTabs: language === "en" ? "Maximum 3 custom tabs" : "Максимум 3 пользовательские вкладки",
+    tabCreated: language === "en" ? "Tab created" : "Вкладка создана",
     noSections: language === "en" ? "No blocks yet. Add one!" : "Блоков пока нет. Добавьте!",
     editSettings: language === "en" ? "Organization Settings" : "Настройки организации",
     deleteOrg: language === "en" ? "Delete Organization" : "Удалить организацию",
     deleteOrgConfirm: language === "en" ? "This will delete the organization and all its data. Continue?" : "Это удалит организацию и все её данные. Продолжить?",
     deleteTab: language === "en" ? "Delete this tab?" : "Удалить эту вкладку?",
-    description: language === "en" ? "Description" : "Описание",
+    description: language === "en" ? "Short description" : "Краткое описание",
+    descriptionHint: language === "en" ? "Shown in the organization list" : "Отображается в списке организаций",
+    fullDescription: language === "en" ? "Detailed description" : "Развёрнутое описание",
+    fullDescriptionHint: language === "en" ? "Shown together with the short one in the Overview tab" : "Отображается вместе с кратким во вкладке «Обзор»",
     name: language === "en" ? "Name" : "Название",
     icon: language === "en" ? "Icon" : "Иконка",
     noDescription: language === "en" ? "No description" : "Нет описания",
@@ -107,12 +118,16 @@ export function GtaOrgDetail() {
       ]);
       setOrg(o);
       setTabs(ts);
-      setSettingsForm({ name: o.name, description: o.description || "", icon: o.icon });
+      setSettingsForm({ name: o.name, description: o.description || "", full_description: o.full_description || "", icon: o.icon });
     } catch { navigate(`/gta-rp/servers/${serverId}`); }
     finally { setLoading(false); }
   }, [orgId, serverId, navigate]);
 
   useEffect(() => { loadOrg(); }, [loadOrg]);
+
+  useEffect(() => {
+    if (isPlayer && activeView === "settings") setActiveView("overview");
+  }, [isPlayer, activeView]);
 
   const loadSections = useCallback(async (tabId: string) => {
     const s = await api.get<Section[]>(`/api/gta/tabs/${tabId}/sections`);
@@ -133,6 +148,7 @@ export function GtaOrgDetail() {
     await api.post(`/api/gta/orgs/${orgId}/tabs`, { name: tabName });
     setTabName("");
     setIsTabDialogOpen(false);
+    toast.success(t.tabCreated);
     loadOrg();
   };
 
@@ -210,10 +226,20 @@ export function GtaOrgDetail() {
           <ArrowLeft className="h-4 w-4 mr-2" /> {t.back}
         </Button>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-lg bg-[#e0015b]/10 dark:bg-[#e0015b]/20 flex items-center justify-center text-2xl">{org?.icon}</div>
+          <div className="w-12 h-12 rounded-lg bg-[#e0015b]/10 dark:bg-[#e0015b]/20 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+            {org && isGtaIconImage(org.icon) ? (
+              <img src={gtaIconUrl(org.icon)} alt="" className="w-full h-full object-cover" />
+            ) : (
+              org?.icon
+            )}
+          </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{org?.name}</h1>
-            {org?.description && <p className="text-sm text-muted-foreground">{org.description}</p>}
+            {org?.description && (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                <LinkifiedText text={org.description} language={language} />
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -233,14 +259,16 @@ export function GtaOrgDetail() {
             <TabButton active={activeView === tab.id} onClick={() => setActiveView(tab.id)}>
               {tab.name}
             </TabButton>
-            <Button variant="ghost" size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity -ml-1"
-              onClick={() => setDeleteTabConfirm({ id: tab.id, name: tab.name })}>
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {!isPlayer && (
+              <Button variant="ghost" size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity -ml-1"
+                onClick={() => setDeleteTabConfirm({ id: tab.id, name: tab.name })}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         ))}
-        {tabs.length < 3 && (
+        {!isPlayer && tabs.length < 3 && (
           <Button variant="ghost" size="sm"
             className="text-xs"
             onClick={() => setIsTabDialogOpen(true)}>
@@ -248,9 +276,11 @@ export function GtaOrgDetail() {
           </Button>
         )}
         <div className="flex-1" />
-        <TabButton active={activeView === "settings"} onClick={() => setActiveView("settings")}>
-          <Settings className="h-4 w-4" /> {t.settings}
-        </TabButton>
+        {!isPlayer && (
+          <TabButton active={activeView === "settings"} onClick={() => setActiveView("settings")}>
+            <Settings className="h-4 w-4" /> {t.settings}
+          </TabButton>
+        )}
       </div>
 
       {/* Content */}
@@ -259,7 +289,14 @@ export function GtaOrgDetail() {
         {activeView === "overview" && (
           <Card className="p-6 bg-card border">
             <h2 className="text-lg font-semibold text-foreground mb-3">{org?.name}</h2>
-            <p className="text-muted-foreground">{org?.description || t.noDescription}</p>
+            <p className="text-muted-foreground whitespace-pre-wrap">
+              {org?.description ? <LinkifiedText text={org.description} language={language} /> : t.noDescription}
+            </p>
+            {org?.full_description && (
+              <p className="text-muted-foreground whitespace-pre-wrap mt-4 pt-4 border-t">
+                <LinkifiedText text={org.full_description} language={language} />
+              </p>
+            )}
             <div className="mt-4 text-sm text-muted-foreground">
               {tabs.length} {t.addTab.toLowerCase().includes("tab") ? "custom tabs" : "вкладок"}
             </div>
@@ -271,24 +308,36 @@ export function GtaOrgDetail() {
             <Card className="p-6 bg-card border">
               <h3 className="text-lg font-semibold text-foreground mb-4">{t.editSettings}</h3>
               <form onSubmit={handleSaveSettings} className="space-y-4">
-                <div>
+                <div className="space-y-2">
                   <Label>{t.icon}</Label>
-                  <Input value={settingsForm.icon} onChange={e => setSettingsForm(f => ({...f, icon: e.target.value}))}
-                    className="text-center text-2xl w-20" maxLength={4} />
+                  <IconPicker
+                    value={settingsForm.icon}
+                    onChange={icon => setSettingsForm(f => ({ ...f, icon }))}
+                    defaultIcon="🏢"
+                    language={language}
+                  />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>{t.name}</Label>
                   <Input value={settingsForm.name} onChange={e => setSettingsForm(f => ({...f, name: e.target.value}))}
                     required />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>{t.description}</Label>
-                  <Input value={settingsForm.description} onChange={e => setSettingsForm(f => ({...f, description: e.target.value}))} />
+                  <p className="text-xs text-muted-foreground">{t.descriptionHint}</p>
+                  <Textarea value={settingsForm.description} onChange={e => setSettingsForm(f => ({...f, description: e.target.value}))}
+                    className="min-h-[80px]" />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.fullDescription}</Label>
+                  <p className="text-xs text-muted-foreground">{t.fullDescriptionHint}</p>
+                  <Textarea value={settingsForm.full_description} onChange={e => setSettingsForm(f => ({...f, full_description: e.target.value}))}
+                    className="min-h-[120px]" />
                 </div>
                 <Button type="submit" className="text-white hover:opacity-90" style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}>{t.save}</Button>
               </form>
             </Card>
-            <Card className="p-6 bg-card border-red-900/30">
+            <Card className="p-6 bg-card border-red-200 dark:border-red-900/30">
               <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">{t.deleteOrg}</h3>
               <Button variant="destructive" onClick={() => setDeleteOrgConfirm(true)}>{t.deleteOrg}</Button>
             </Card>
@@ -297,13 +346,15 @@ export function GtaOrgDetail() {
 
         {isCustomTab && (
           <div className="space-y-4">
-            <div className="flex justify-end">
-              <Button size="sm" className="text-white hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}
-                onClick={() => setIsSectionDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> {t.addSection}
-              </Button>
-            </div>
+            {!isPlayer && (
+              <div className="flex justify-end">
+                <Button size="sm" className="text-white hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}
+                  onClick={() => setIsSectionDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> {t.addSection}
+                </Button>
+              </div>
+            )}
 
             {sections.length === 0 ? (
               <Card className="p-8 bg-card border text-center">
@@ -313,7 +364,7 @@ export function GtaOrgDetail() {
               <DndContext collisionDetection={closestCenter} onDragEnd={handleReorder}>
                 <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
                   {sections.map((sec, i) => (
-                    <SectionRenderer key={sec.id} section={sec} language={language}
+                    <SectionRenderer key={sec.id} section={sec} language={language} isPlayer={isPlayer}
                       onDelete={() => setDeleteSectionConfirm({ id: sec.id, title: sec.title || SECTION_TYPES.find(st => st.type === sec.type)?.[language === "en" ? "labelEn" : "labelRu"] || sec.type })}
                       onUpdate={(config) => handleUpdateSection(sec.id, config)}
                       index={i} mounted={mounted} />
@@ -330,7 +381,7 @@ export function GtaOrgDetail() {
         <DialogContent>
           <DialogHeader><DialogTitle className="text-[#e0015b] dark:text-rose-400">{t.addTab}</DialogTitle></DialogHeader>
           <form onSubmit={handleCreateTab} className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label>{t.tabName}</Label>
               <Input value={tabName} onChange={e => setTabName(e.target.value)}
                 required maxLength={100} />
@@ -364,7 +415,7 @@ export function GtaOrgDetail() {
                 ))}
               </div>
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>{t.sectionTitle}</Label>
               <Input value={sectionForm.title} onChange={e => setSectionForm(f => ({...f, title: e.target.value}))} />
             </div>
@@ -452,9 +503,10 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   );
 }
 
-function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted }: {
+function SectionRenderer({ section, language, isPlayer, onDelete, onUpdate, index, mounted }: {
   section: Section;
   language: string;
+  isPlayer: boolean;
   onDelete: () => void;
   onUpdate: (config: Record<string, unknown>) => void;
   index: number;
@@ -488,9 +540,11 @@ function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <button {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none">
-              <GripVertical className="h-4 w-4" />
-            </button>
+            {!isPlayer && (
+              <button {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none">
+                <GripVertical className="h-4 w-4" />
+              </button>
+            )}
             <div className="text-[#e0015b] dark:text-rose-400">{typeInfo?.icon}</div>
           <span className="text-sm font-medium text-foreground">
             {section.title || (language === "en" ? typeInfo?.labelEn : typeInfo?.labelRu)}
@@ -499,11 +553,13 @@ function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted
             {section.type}
           </span>
         </div>
-        <Button variant="ghost" size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={onDelete}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {!isPlayer && (
+          <Button variant="ghost" size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       {section.type === "text" && (
@@ -522,9 +578,12 @@ function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted
               </div>
             </div>
           ) : (
-            <div className="text-muted-foreground text-sm cursor-pointer hover:text-foreground whitespace-pre-wrap min-h-[40px]"
-              onClick={() => setEditing(true)}>
-              {content || (language === "en" ? "Click to edit..." : "Нажмите для редактирования...")}
+            <div
+              className={`text-muted-foreground text-sm whitespace-pre-wrap min-h-[40px] ${!isPlayer ? "cursor-pointer hover:text-foreground" : ""}`}
+              onClick={() => !isPlayer && setEditing(true)}>
+              {content || (isPlayer
+                ? (language === "en" ? "No content" : "Нет содержимого")
+                : (language === "en" ? "Click to edit..." : "Нажмите для редактирования..."))}
             </div>
           )}
         </div>
@@ -546,9 +605,12 @@ function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted
               </div>
             </div>
           ) : (
-            <div className="text-muted-foreground text-sm cursor-pointer hover:text-foreground whitespace-pre-wrap min-h-[40px] p-3 bg-muted/50 rounded border"
-              onClick={() => setEditing(true)}>
-              {content || (language === "en" ? "Click to edit document..." : "Нажмите для редактирования документа...")}
+            <div
+              className={`text-muted-foreground text-sm whitespace-pre-wrap min-h-[40px] p-3 bg-muted/50 rounded border ${!isPlayer ? "cursor-pointer hover:text-foreground" : ""}`}
+              onClick={() => !isPlayer && setEditing(true)}>
+              {content || (isPlayer
+                ? (language === "en" ? "No content" : "Нет содержимого")
+                : (language === "en" ? "Click to edit document..." : "Нажмите для редактирования документа..."))}
             </div>
           )}
         </div>
@@ -558,6 +620,7 @@ function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted
         <MembersBlock
           config={section.config as unknown as MembersConfig}
           language={language}
+          isPlayer={isPlayer}
           onUpdate={onUpdate}
         />
       )}
@@ -566,6 +629,7 @@ function SectionRenderer({ section, language, onDelete, onUpdate, index, mounted
         <FormBlock
           config={section.config as unknown as FormConfig}
           language={language}
+          isPlayer={isPlayer}
           onUpdate={onUpdate}
         />
       )}
@@ -590,9 +654,10 @@ interface MembersConfig {
   members: Array<{ id: string; name: string; rank: string }>;
 }
 
-function MembersBlock({ config, language, onUpdate }: {
+function MembersBlock({ config, language, isPlayer, onUpdate }: {
   config: MembersConfig;
   language: string;
+  isPlayer: boolean;
   onUpdate: (config: Record<string, unknown>) => void;
 }) {
   const [newName, setNewName] = useState("");
@@ -655,14 +720,16 @@ function MembersBlock({ config, language, onUpdate }: {
         <span className="text-xs text-muted-foreground">
           {members.length} {t.membersCount}
         </span>
-        <Button variant="ghost" size="sm" className="text-xs h-7"
-          onClick={() => setShowRankSettings(!showRankSettings)}>
-          <Settings className="h-3 w-3 mr-1" />
-          {t.ranksLabel}
-        </Button>
+        {!isPlayer && (
+          <Button variant="ghost" size="sm" className="text-xs h-7"
+            onClick={() => setShowRankSettings(!showRankSettings)}>
+            <Settings className="h-3 w-3 mr-1" />
+            {t.ranksLabel}
+          </Button>
+        )}
       </div>
 
-      {showRankSettings && (
+      {!isPlayer && showRankSettings && (
         <div className="p-3 rounded border bg-muted/30 space-y-2">
           <p className="text-xs font-medium text-foreground">{t.ranksLabel}</p>
           <div className="flex flex-wrap gap-1.5">
@@ -698,7 +765,7 @@ function MembersBlock({ config, language, onUpdate }: {
               <tr className="bg-muted/50 border-b">
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t.name}</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t.rank}</th>
-                <th className="w-10" />
+                {!isPlayer && <th className="w-10" />}
               </tr>
             </thead>
             <tbody>
@@ -714,12 +781,14 @@ function MembersBlock({ config, language, onUpdate }: {
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-2 py-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
-                      onClick={() => setDeleteMemberConfirm({ id: member.id, name: member.name })}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </td>
+                  {!isPlayer && (
+                    <td className="px-2 py-1">
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
+                        onClick={() => setDeleteMemberConfirm({ id: member.id, name: member.name })}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -727,26 +796,28 @@ function MembersBlock({ config, language, onUpdate }: {
         </div>
       )}
 
-      <div className="flex gap-2">
-        <Input value={newName} onChange={e => setNewName(e.target.value)}
-          placeholder={t.namePlaceholder} className="h-8 text-sm flex-1"
-          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addMember(); } }} />
-        <select
-          value={newRank}
-          onChange={e => setNewRank(e.target.value)}
-          className="h-8 px-2 rounded border text-sm bg-background text-foreground"
-        >
-          <option value="">{ranks.length === 0 ? t.noRanks : t.selectRank}</option>
-          {ranks.map(rank => (
-            <option key={rank} value={rank}>{rank}</option>
-          ))}
-        </select>
-        <Button size="sm" className="h-8 text-white hover:opacity-90" style={{ background: '#e0015b' }}
-          onClick={addMember} disabled={!newName.trim()}>
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          {t.addMember}
-        </Button>
-      </div>
+      {!isPlayer && (
+        <div className="flex gap-2">
+          <Input value={newName} onChange={e => setNewName(e.target.value)}
+            placeholder={t.namePlaceholder} className="h-8 text-sm flex-1"
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addMember(); } }} />
+          <select
+            value={newRank}
+            onChange={e => setNewRank(e.target.value)}
+            className="h-8 px-2 rounded border text-sm bg-background text-foreground"
+          >
+            <option value="">{ranks.length === 0 ? t.noRanks : t.selectRank}</option>
+            {ranks.map(rank => (
+              <option key={rank} value={rank}>{rank}</option>
+            ))}
+          </select>
+          <Button size="sm" className="h-8 text-white hover:opacity-90" style={{ background: '#e0015b' }}
+            onClick={addMember} disabled={!newName.trim()}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            {t.addMember}
+          </Button>
+        </div>
+      )}
 
       {/* Delete Rank Confirmation */}
       <AlertDialog open={!!deleteRankConfirm} onOpenChange={(open: boolean) => { if (!open) setDeleteRankConfirm(null); }}>
@@ -810,9 +881,10 @@ const FIELD_TYPES = [
   { type: "select", labelEn: "Select", labelRu: "Выбор" },
 ] as const;
 
-function FormBlock({ config, language, onUpdate }: {
+function FormBlock({ config, language, isPlayer, onUpdate }: {
   config: FormConfig;
   language: string;
+  isPlayer: boolean;
   onUpdate: (config: Record<string, unknown>) => void;
 }) {
   const [isPreview, setIsPreview] = useState(false);
@@ -820,6 +892,7 @@ function FormBlock({ config, language, onUpdate }: {
   const [editField, setEditField] = useState<FormField | null>(null);
   const [fieldForm, setFieldForm] = useState({ label: "", type: "text" as string, required: false, options: "" });
   const [deleteFieldConfirm, setDeleteFieldConfirm] = useState<{ id: string; label: string } | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const fields = config.fields || [];
 
@@ -839,6 +912,23 @@ function FormBlock({ config, language, onUpdate }: {
     labelPlaceholder: language === "en" ? "Field name..." : "Название поля...",
     optionsPlaceholder: language === "en" ? "Option 1\nOption 2\nOption 3" : "Вариант 1\nВариант 2\nВариант 3",
     selectPlaceholder: language === "en" ? "Select..." : "Выберите...",
+    submit: language === "en" ? "Submit" : "Отправить",
+    fillRequired: language === "en" ? "Fill in all required fields" : "Заполните все обязательные поля",
+    testModeNotice: language === "en"
+      ? "Test mode — this submission is not saved anywhere"
+      : "Тестовый режим — эта заявка нигде не сохраняется",
+    noFieldsPlayer: language === "en" ? "This form has no fields yet" : "В этой форме пока нет полей",
+  };
+
+  const setAnswer = (id: string, value: string) => setAnswers(a => ({ ...a, [id]: value }));
+
+  const handleTestSubmit = () => {
+    const missing = fields.filter(f => f.required && !(answers[f.id] ?? "").trim());
+    if (missing.length > 0) {
+      toast.error(t.fillRequired);
+      return;
+    }
+    toast.info(t.testModeNotice);
   };
 
   const openAdd = () => {
@@ -888,6 +978,50 @@ function FormBlock({ config, language, onUpdate }: {
     setDeleteFieldConfirm(null);
     toast.success(language === "en" ? "Field deleted" : "Поле удалено");
   };
+
+  if (isPlayer) {
+    return (
+      <div className="space-y-3 p-3 rounded border bg-muted/20">
+        {fields.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">{t.noFieldsPlayer}</p>
+        ) : (
+          <>
+            {fields.map(field => (
+              <div key={field.id} className="space-y-1">
+                <Label className="text-sm">
+                  {field.label}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </Label>
+                {field.type === "text" && (
+                  <Input value={answers[field.id] ?? ""} onChange={e => setAnswer(field.id, e.target.value)}
+                    placeholder={field.label} className="h-8 text-sm" />
+                )}
+                {field.type === "number" && (
+                  <Input value={answers[field.id] ?? ""} onChange={e => setAnswer(field.id, e.target.value)}
+                    type="number" placeholder="0" className="h-8 text-sm w-32" />
+                )}
+                {field.type === "date" && (
+                  <Input value={answers[field.id] ?? ""} onChange={e => setAnswer(field.id, e.target.value)}
+                    type="date" className="h-8 text-sm w-44" />
+                )}
+                {field.type === "select" && (
+                  <select value={answers[field.id] ?? ""} onChange={e => setAnswer(field.id, e.target.value)}
+                    className="w-full h-8 px-2 rounded border text-sm bg-background text-foreground">
+                    <option value="">{t.selectPlaceholder}</option>
+                    {(field.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                )}
+              </div>
+            ))}
+            <Button size="sm" className="text-white hover:opacity-90" style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}
+              onClick={handleTestSubmit}>
+              {t.submit}
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -981,7 +1115,7 @@ function FormBlock({ config, language, onUpdate }: {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label>{t.fieldLabel}</Label>
               <Input value={fieldForm.label} onChange={e => setFieldForm(f => ({ ...f, label: e.target.value }))}
                 placeholder={t.labelPlaceholder} />
@@ -1001,7 +1135,7 @@ function FormBlock({ config, language, onUpdate }: {
               </div>
             </div>
             {fieldForm.type === "select" && (
-              <div>
+              <div className="space-y-2">
                 <Label>{t.options}</Label>
                 <Textarea value={fieldForm.options} onChange={e => setFieldForm(f => ({ ...f, options: e.target.value }))}
                   className="min-h-[80px] text-sm" placeholder={t.optionsPlaceholder} />

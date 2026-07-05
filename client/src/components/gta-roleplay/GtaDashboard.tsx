@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../../lib/language-context";
 import { Card } from "../ui/card";
-import { Gamepad2, Server, Building2, Wrench, Clock } from "lucide-react";
+import { Gamepad2, Server, Building2, Wrench, Clock, AlertTriangle, RefreshCw } from "lucide-react";
 import { api } from "../../api/client";
+import { gtaIconUrl, isGtaIconImage } from "../../api/gta";
 
 interface DashboardStats {
   servers: number;
@@ -19,17 +20,21 @@ export function GtaDashboard() {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
   }, []);
 
   const loadStats = useCallback(async () => {
+    setLoading(true);
+    setError(false);
     try {
       const data = await api.get<DashboardStats>("/api/gta/dashboard/stats");
       setStats(data);
     } catch {
       setStats(null);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -49,6 +54,9 @@ export function GtaDashboard() {
     recentOrgs: language === "en" ? "Recent Organizations" : "Последние организации",
     noActivity: language === "en" ? "No activity yet. Create your first server!" : "Пока нет активности. Создайте первый сервер!",
     orgsCount: language === "en" ? "orgs" : "орг.",
+    loadError: language === "en" ? "Couldn't load statistics" : "Не удалось загрузить статистику",
+    loadErrorHint: language === "en" ? "Your session may have expired. Try again." : "Возможно, истекла сессия. Попробуйте ещё раз.",
+    retry: language === "en" ? "Retry" : "Повторить",
   };
 
   const statCards = [
@@ -99,7 +107,7 @@ export function GtaDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">{item.label}</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {loading ? "—" : item.value}
+                  {loading ? "—" : error ? "?" : item.value}
                 </p>
               </div>
             </div>
@@ -115,7 +123,20 @@ export function GtaDashboard() {
       `}
         style={{ transitionDelay: "650ms" }}
       >
-        {!loading && !hasActivity ? (
+        {!loading && error ? (
+          <Card className="p-8 bg-card border-destructive/40 border text-center col-span-full">
+            <AlertTriangle className="h-10 w-10 text-destructive/60 mx-auto mb-3" />
+            <p className="text-foreground font-medium">{t.loadError}</p>
+            <p className="text-muted-foreground text-sm mt-1 mb-4">{t.loadErrorHint}</p>
+            <button
+              onClick={loadStats}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-[#e0015b] text-white hover:bg-[#e0015b]/90 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {t.retry}
+            </button>
+          </Card>
+        ) : !loading && !hasActivity ? (
           <Card className="p-8 bg-card border text-center col-span-full">
             <Clock className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-muted-foreground">{t.noActivity}</p>
@@ -141,8 +162,12 @@ export function GtaDashboard() {
                       className="flex items-center justify-between p-2 rounded hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => navigate(`/gta-rp/servers/${s.id}`)}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-lg">{s.icon}</span>
+                      <div className="flex items-center gap-3">
+                        {isGtaIconImage(s.icon) ? (
+                          <img src={gtaIconUrl(s.icon)} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                        ) : (
+                          <span className="text-lg">{s.icon}</span>
+                        )}
                         <div>
                           <p className="text-sm font-medium text-foreground">{s.name}</p>
                           <p className="text-xs text-muted-foreground">{s.org_count} {t.orgsCount}</p>
@@ -174,8 +199,12 @@ export function GtaDashboard() {
                       className="flex items-center justify-between p-2 rounded hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => navigate(`/gta-rp/servers/${o.server_id}/orgs/${o.id}`)}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-lg">{o.icon}</span>
+                      <div className="flex items-center gap-3">
+                        {isGtaIconImage(o.icon) ? (
+                          <img src={gtaIconUrl(o.icon)} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                        ) : (
+                          <span className="text-lg">{o.icon}</span>
+                        )}
                         <div>
                           <p className="text-sm font-medium text-foreground">{o.name}</p>
                           <p className="text-xs text-muted-foreground">{o.server_name}</p>

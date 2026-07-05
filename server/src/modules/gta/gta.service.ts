@@ -4,7 +4,7 @@ import { AppError } from "../../middleware/errorHandler";
 import { encrypt, decryptFields } from "../../utils/crypto";
 
 const SERVER_FIELDS = ["name", "project_name"];
-const ORG_FIELDS = ["name", "description"];
+const ORG_FIELDS = ["name", "description", "full_description"];
 const TAB_FIELDS = ["name"];
 const SECTION_FIELDS = ["title"];
 
@@ -93,19 +93,24 @@ export async function getOrg(orgId: string, ownerId: string) {
   return decryptFields(row, ORG_FIELDS);
 }
 
-export async function createOrg(serverId: string, data: { name: string; description?: string; icon?: string }, ownerId: string) {
+export async function createOrg(serverId: string, data: { name: string; description?: string; full_description?: string; icon?: string }, ownerId: string) {
   await assertServerOwner(serverId, ownerId);
   const maxOrder = await queryOne<{ max: number }>("SELECT COALESCE(MAX(sort_order), -1) AS max FROM gta_organizations WHERE server_id = $1", [serverId]);
   const id = uuidv4();
   const row = await queryOne(`
-    INSERT INTO gta_organizations (id, server_id, name, description, icon, sort_order)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO gta_organizations (id, server_id, name, description, full_description, icon, sort_order)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
-  `, [id, serverId, encrypt(data.name), data.description ? encrypt(data.description) : null, data.icon || "🏢", (maxOrder?.max ?? -1) + 1]);
+  `, [
+    id, serverId, encrypt(data.name),
+    data.description ? encrypt(data.description) : null,
+    data.full_description ? encrypt(data.full_description) : null,
+    data.icon || "🏢", (maxOrder?.max ?? -1) + 1,
+  ]);
   return decryptFields(row, ORG_FIELDS);
 }
 
-export async function updateOrg(orgId: string, data: { name?: string; description?: string; icon?: string }, ownerId: string) {
+export async function updateOrg(orgId: string, data: { name?: string; description?: string; full_description?: string; icon?: string }, ownerId: string) {
   await assertOrgOwner(orgId, ownerId);
   const sets: string[] = [];
   const vals: unknown[] = [];
@@ -113,6 +118,7 @@ export async function updateOrg(orgId: string, data: { name?: string; descriptio
 
   if (data.name !== undefined) { sets.push(`name = $${idx++}`); vals.push(encrypt(data.name)); }
   if (data.description !== undefined) { sets.push(`description = $${idx++}`); vals.push(data.description ? encrypt(data.description) : null); }
+  if (data.full_description !== undefined) { sets.push(`full_description = $${idx++}`); vals.push(data.full_description ? encrypt(data.full_description) : null); }
   if (data.icon !== undefined) { sets.push(`icon = $${idx++}`); vals.push(data.icon); }
 
   if (sets.length === 0) throw new AppError(422, "Nothing to update");

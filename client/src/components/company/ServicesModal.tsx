@@ -16,6 +16,7 @@ interface Service {
   iconStyle?: React.CSSProperties;
   status: "active" | "coming-soon";
   statusRu: string;
+  isNew?: boolean;
 }
 
 const services: Service[] = [
@@ -105,7 +106,8 @@ export function ServicesModal({ isOpen, onClose, onSelectService, onContactUs, l
     color: "",
     iconStyle: { background: 'linear-gradient(135deg, #e0015b, #f43f5e, #f472b6)' },
     status: "active",
-    statusRu: "Доступно"
+    statusRu: "Доступно",
+    isNew: true
   };
 
   const displayedServices = [
@@ -134,14 +136,22 @@ export function ServicesModal({ isOpen, onClose, onSelectService, onContactUs, l
             <Card
               key={service.id}
               className={`
-                p-5 transition-all duration-300 cursor-pointer border-2
-                ${service.status === "active" 
-                  ? "hover:shadow-xl hover:scale-[1.02] hover:border-primary/50" 
+                relative overflow-hidden p-5 transition-all duration-300 cursor-pointer border-2
+                ${service.status === "active"
+                  ? "hover:shadow-xl hover:scale-[1.02] hover:border-primary/50"
                   : "opacity-60 cursor-not-allowed"
                 }
               `}
               onClick={() => service.status === "active" && onSelectService(service.id)}
             >
+              {service.isNew && (
+                <div
+                  className="absolute top-3 right-3 flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-semibold tracking-wide text-white shadow-md"
+                  style={{ background: 'linear-gradient(90deg, #f43f5e, #a855f7)' }}
+                >
+                  NEW
+                </div>
+              )}
               <div className="flex flex-col gap-4">
                 {/* Icon with gradient background */}
                 <div className={`

@@ -6,8 +6,13 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 import { Server, Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../../api/client";
+import { gtaIconUrl, isGtaIconImage } from "../../api/gta";
+import { IconPicker } from "./IconPicker";
+import { useGtaViewMode } from "./GtaViewModeContext";
 
 export interface GtaServer {
   id: string;
@@ -21,12 +26,15 @@ export interface GtaServer {
 export function GtaServers() {
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const { viewMode } = useGtaViewMode();
+  const isPlayer = viewMode === "player";
   const [servers, setServers] = useState<GtaServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editServer, setEditServer] = useState<GtaServer | null>(null);
   const [form, setForm] = useState({ name: "", project_name: "", icon: "🎮" });
+  const [deleteServerConfirm, setDeleteServerConfirm] = useState<GtaServer | null>(null);
 
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
@@ -39,12 +47,18 @@ export function GtaServers() {
     edit: language === "en" ? "Edit Server" : "Редактировать сервер",
     name: language === "en" ? "Server name" : "Название сервера",
     project: language === "en" ? "Project name" : "Название проекта",
-    icon: language === "en" ? "Icon (emoji)" : "Иконка (эмодзи)",
+    icon: language === "en" ? "Icon" : "Иконка",
     save: language === "en" ? "Save" : "Сохранить",
     cancel: language === "en" ? "Cancel" : "Отмена",
     empty: language === "en" ? "No servers yet. Create your first one!" : "Серверов пока нет. Создайте первый!",
     orgs: language === "en" ? "organizations" : "организаций",
-    deleteConfirm: language === "en" ? "Delete this server?" : "Удалить этот сервер?",
+    deleteServer: language === "en" ? "Delete Server" : "Удалить сервер",
+    deleteConfirm: language === "en"
+      ? "This will delete the server and all its organizations. Continue?"
+      : "Это удалит сервер и все его организации. Продолжить?",
+    deleted: language === "en" ? "Server deleted" : "Сервер удалён",
+    created: language === "en" ? "Server created" : "Сервер создан",
+    updated: language === "en" ? "Server updated" : "Сервер обновлён",
   };
 
   const loadServers = useCallback(async () => {
@@ -65,8 +79,10 @@ export function GtaServers() {
     if (!form.name.trim()) return;
     if (editServer) {
       await api.put(`/api/gta/servers/${editServer.id}`, form);
+      toast.success(t.updated);
     } else {
       await api.post("/api/gta/servers", form);
+      toast.success(t.created);
     }
     setIsCreateOpen(false);
     setEditServer(null);
@@ -74,9 +90,15 @@ export function GtaServers() {
     loadServers();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t.deleteConfirm)) return;
-    await api.delete(`/api/gta/servers/${id}`);
+  const handleDelete = (s: GtaServer) => {
+    setDeleteServerConfirm(s);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteServerConfirm) return;
+    await api.delete(`/api/gta/servers/${deleteServerConfirm.id}`);
+    setDeleteServerConfirm(null);
+    toast.success(t.deleted);
     loadServers();
   };
 
@@ -109,14 +131,16 @@ export function GtaServers() {
           </div>
           <p className="text-muted-foreground">{t.subtitle}</p>
         </div>
-        <Button
-          onClick={openCreate}
-          className="text-white shadow-lg hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          {t.create}
-        </Button>
+        {!isPlayer && (
+          <Button
+            onClick={openCreate}
+            className="text-white shadow-lg hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {t.create}
+          </Button>
+        )}
       </div>
 
       {/* Server cards */}
@@ -153,8 +177,12 @@ export function GtaServers() {
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-[#e0015b]/10 dark:bg-[#e0015b]/20 flex items-center justify-center text-2xl">
-                    {s.icon}
+                  <div className="w-12 h-12 rounded-lg bg-[#e0015b]/10 dark:bg-[#e0015b]/20 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+                    {isGtaIconImage(s.icon) ? (
+                      <img src={gtaIconUrl(s.icon)} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      s.icon
+                    )}
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground group-hover:text-[#e0015b] transition-colors">
@@ -168,22 +196,24 @@ export function GtaServers() {
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    variant="ghost" size="icon"
-                    className="h-7 w-7"
-                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEdit(s); }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
-                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDelete(s.id); }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                {!isPlayer && (
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-7 w-7"
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEdit(s); }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDelete(s); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </Card>
           ))}
@@ -199,16 +229,16 @@ export function GtaServers() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label>{t.icon}</Label>
-              <Input
+              <IconPicker
                 value={form.icon}
-                onChange={e => setForm(f => ({ ...f, icon: e.target.value }))}
-                className="text-center text-2xl w-20"
-                maxLength={4}
+                onChange={icon => setForm(f => ({ ...f, icon }))}
+                defaultIcon="🎮"
+                language={language}
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>{t.name}</Label>
               <Input
                 value={form.name}
@@ -216,7 +246,7 @@ export function GtaServers() {
                 required
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>{t.project}</Label>
               <Input
                 value={form.project_name}
@@ -234,6 +264,22 @@ export function GtaServers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Server Confirmation */}
+      <AlertDialog open={!!deleteServerConfirm} onOpenChange={(open: boolean) => { if (!open) setDeleteServerConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.deleteServer}</AlertDialogTitle>
+            <AlertDialogDescription>{t.deleteConfirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={confirmDelete}>
+              {t.deleteServer}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

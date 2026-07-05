@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
 import { useLanguage } from "../../lib/language-context";
 import { useUser } from "../../lib/user-context";
+import { GtaViewModeProvider, useGtaViewMode } from "./GtaViewModeContext";
 import {
   Gamepad2,
   LayoutDashboard,
@@ -11,6 +13,7 @@ import {
   X,
   LogOut,
   ArrowLeft,
+  UserCog,
 } from "lucide-react";
 
 interface NavItem {
@@ -26,10 +29,19 @@ const navItems: NavItem[] = [
 ];
 
 export function GtaRoleplay() {
+  return (
+    <GtaViewModeProvider>
+      <GtaRoleplayLayout />
+    </GtaViewModeProvider>
+  );
+}
+
+function GtaRoleplayLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { language } = useLanguage();
   const { logout } = useUser();
+  const { viewMode, setViewMode } = useGtaViewMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -42,6 +54,8 @@ export function GtaRoleplay() {
     subtitle: language === "en" ? "Server Management" : "Управление серверами",
     logout: language === "en" ? "Logout" : "Выйти",
     backToServices: language === "en" ? "All Services" : "Все сервисы",
+    player: language === "en" ? "Player" : "Игрок",
+    owner: language === "en" ? "Owner" : "Владелец",
   };
 
   const handleLogout = async () => {
@@ -77,6 +91,16 @@ export function GtaRoleplay() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/50">
+              <UserCog className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{t.player}</span>
+              <Switch
+                checked={viewMode === "owner"}
+                onCheckedChange={(checked: boolean) => setViewMode(checked ? "owner" : "player")}
+                className="data-[state=checked]:bg-[#e0015b]"
+              />
+              <span className="text-xs font-medium">{t.owner}</span>
+            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -111,6 +135,17 @@ export function GtaRoleplay() {
           style={{ transitionDelay: mounted ? "200ms" : "0ms" }}
         >
           <nav className="space-y-2 p-4">
+            <div className="md:hidden mb-4 p-3 rounded-lg border bg-muted/50 flex items-center justify-between">
+              <span className="text-sm flex items-center gap-2">
+                <UserCog className="h-4 w-4" />
+                {viewMode === "owner" ? t.owner : t.player}
+              </span>
+              <Switch
+                checked={viewMode === "owner"}
+                onCheckedChange={(checked: boolean) => setViewMode(checked ? "owner" : "player")}
+                className="data-[state=checked]:bg-[#e0015b]"
+              />
+            </div>
             {navItems.map((item, i) => {
               const active = isActive(item.path);
               return (

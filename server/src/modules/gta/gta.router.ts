@@ -1,10 +1,30 @@
 import { Router, Request, Response, NextFunction } from "express";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
 import { z } from "zod";
 import * as svc from "./gta.service";
 import { requireAuth, requireOwner } from "../../middleware/auth";
 import { AppError } from "../../middleware/errorHandler";
+import { env } from "../../config/env";
 
 const router = Router();
+
+// ─── Icon upload ────────────────────────────────────────────────────────────────
+const uploadDir = path.resolve(env.UPLOAD_DIR);
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const iconUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadDir),
+    filename: (_req, file, cb) => cb(null, `icon-${Date.now()}-${file.originalname}`),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) return cb(new AppError(400, "Only image files are allowed"));
+    cb(null, true);
+  },
+});
 
 function validate<T>(schema: z.ZodSchema<T>, body: unknown, next: NextFunction): T | null {
   const r = schema.safeParse(body);
@@ -15,13 +35,14 @@ function validate<T>(schema: z.ZodSchema<T>, body: unknown, next: NextFunction):
 const serverSchema = z.object({
   name: z.string().min(1).max(200),
   project_name: z.string().max(200).optional(),
-  icon: z.string().max(50).optional(),
+  icon: z.string().max(500).optional(),
 });
 
 const orgSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().optional(),
-  icon: z.string().max(50).optional(),
+  full_description: z.string().optional(),
+  icon: z.string().max(500).optional(),
 });
 
 const tabSchema = z.object({
@@ -36,6 +57,11 @@ const sectionSchema = z.object({
 
 const reorderSchema = z.object({
   section_ids: z.array(z.string().uuid()),
+});
+
+router.post("/upload-icon", requireAuth, requireOwner, iconUpload.single("file"), (req: Request & { file?: Express.Multer.File }, res: Response, next: NextFunction) => {
+  if (!req.file) { next(new AppError(400, "No file uploaded")); return; }
+  res.status(201).json({ url: `/uploads/${req.file.filename}` });
 });
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
