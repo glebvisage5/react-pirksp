@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Trash2, Settings, Eye, X, Pencil, GripVertical,
-  Users, FileText, ClipboardList, File,
+  Users, FileText, ClipboardList, File, Inbox, Copy, RefreshCw,
 } from "lucide-react";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
@@ -21,6 +21,7 @@ import { gtaIconUrl, isGtaIconImage } from "../../api/gta";
 import { IconPicker } from "./IconPicker";
 import { LinkifiedText } from "./LinkifiedText";
 import { useGtaViewMode } from "./GtaViewModeContext";
+import { GtaSubmissionsTab } from "./GtaSubmissionsTab";
 
 interface OrgData {
   id: string;
@@ -29,6 +30,7 @@ interface OrgData {
   description: string | null;
   full_description: string | null;
   icon: string;
+  public_form_token: string | null;
 }
 
 interface Tab {
@@ -47,7 +49,18 @@ interface Section {
   sort_order: number;
 }
 
-type ActiveView = "overview" | "settings" | string;
+interface FormSectionOption {
+  id: string;
+  tab_name: string;
+  title: string | null;
+}
+
+type ActiveView = "overview" | "settings" | "submissions" | string;
+
+const SPECIAL_VIEWS = ["overview", "settings", "submissions"];
+function isCustomTabView(view: ActiveView): boolean {
+  return !SPECIAL_VIEWS.includes(view);
+}
 
 const SECTION_TYPES = [
   { type: "members", icon: <Users className="h-4 w-4" />, labelEn: "Members", labelRu: "Участники" },
@@ -78,6 +91,9 @@ export function GtaOrgDetail() {
   const [deleteTabConfirm, setDeleteTabConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteOrgConfirm, setDeleteOrgConfirm] = useState(false);
   const [deleteSectionConfirm, setDeleteSectionConfirm] = useState<{ id: string; title: string } | null>(null);
+  const [regenTokenConfirm, setRegenTokenConfirm] = useState(false);
+  const [formSections, setFormSections] = useState<FormSectionOption[]>([]);
+  const [selectedFormSection, setSelectedFormSection] = useState("");
 
   useEffect(() => { requestAnimationFrame(() => setMounted(true)); }, []);
 
@@ -107,6 +123,23 @@ export function GtaOrgDetail() {
     name: language === "en" ? "Name" : "Название",
     icon: language === "en" ? "Icon" : "Иконка",
     noDescription: language === "en" ? "No description" : "Нет описания",
+    submissions: language === "en" ? "Submissions" : "Заявки",
+    publicLink: language === "en" ? "Public application link" : "Публичная ссылка для заявок",
+    publicLinkHint: language === "en"
+      ? "Anyone with this link can submit an application form — no login required."
+      : "Любой, у кого есть эта ссылка, может отправить заявку — без входа в аккаунт.",
+    createLink: language === "en" ? "Create public link" : "Создать публичную ссылку",
+    regenerateLink: language === "en" ? "Regenerate link" : "Перевыпустить ссылку",
+    regenerateLinkConfirmTitle: language === "en" ? "Regenerate the link?" : "Перевыпустить ссылку?",
+    regenerateLinkConfirmBody: language === "en"
+      ? "The old link will stop working immediately."
+      : "Старая ссылка сразу перестанет работать.",
+    linkCopied: language === "en" ? "Link copied" : "Ссылка скопирована",
+    linkCreated: language === "en" ? "Public link created" : "Публичная ссылка создана",
+    noFormBlocks: language === "en"
+      ? "Add a Form block to one of the tabs first."
+      : "Сначала добавьте блок «Форма» в одну из вкладок.",
+    whichForm: language === "en" ? "Which form should the link open?" : "Какую форму открывает ссылка?",
   };
 
   const loadOrg = useCallback(async () => {
@@ -126,8 +159,16 @@ export function GtaOrgDetail() {
   useEffect(() => { loadOrg(); }, [loadOrg]);
 
   useEffect(() => {
-    if (isPlayer && activeView === "settings") setActiveView("overview");
+    if (isPlayer && (activeView === "settings" || activeView === "submissions")) setActiveView("overview");
   }, [isPlayer, activeView]);
+
+  useEffect(() => {
+    if (activeView !== "settings" || !orgId) return;
+    api.get<FormSectionOption[]>(`/api/gta/orgs/${orgId}/form-sections`).then((list) => {
+      setFormSections(list);
+      setSelectedFormSection((prev) => prev || list[0]?.id || "");
+    });
+  }, [activeView, orgId]);
 
   const loadSections = useCallback(async (tabId: string) => {
     const s = await api.get<Section[]>(`/api/gta/tabs/${tabId}/sections`);
@@ -135,7 +176,7 @@ export function GtaOrgDetail() {
   }, []);
 
   useEffect(() => {
-    if (activeView !== "overview" && activeView !== "settings") {
+    if (isCustomTabView(activeView)) {
       loadSections(activeView);
     } else {
       setSections([]);
@@ -162,7 +203,7 @@ export function GtaOrgDetail() {
 
   const handleCreateSection = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeView === "overview" || activeView === "settings") return;
+    if (!isCustomTabView(activeView)) return;
     await api.post(`/api/gta/tabs/${activeView}/sections`, {
       type: sectionForm.type,
       title: sectionForm.title || undefined,
@@ -178,12 +219,12 @@ export function GtaOrgDetail() {
     await api.delete(`/api/gta/sections/${sectionId}`);
     setDeleteSectionConfirm(null);
     toast.success(language === "en" ? "Block deleted" : "Блок удалён");
-    if (activeView !== "overview" && activeView !== "settings") loadSections(activeView);
+    if (isCustomTabView(activeView)) loadSections(activeView);
   };
 
   const handleUpdateSection = async (sectionId: string, config: Record<string, unknown>) => {
     await api.put(`/api/gta/sections/${sectionId}`, { config });
-    if (activeView !== "overview" && activeView !== "settings") loadSections(activeView);
+    if (isCustomTabView(activeView)) loadSections(activeView);
   };
 
   const handleReorder = async (event: DragEndEvent) => {
@@ -213,9 +254,28 @@ export function GtaOrgDetail() {
     navigate(`/gta-rp/servers/${serverId}`);
   };
 
+  const publicFormUrl = (token: string) => `${window.location.origin}/gta-rp/public/forms/${token}`;
+
+  const copyPublicLink = (token: string) => {
+    navigator.clipboard.writeText(publicFormUrl(token));
+    toast.success(t.linkCopied);
+  };
+
+  const handleCreateToken = async () => {
+    if (!selectedFormSection) return;
+    const { token } = await api.post<{ token: string }>(`/api/gta/orgs/${orgId}/public-form-token`, { sectionId: selectedFormSection });
+    setOrg(o => o ? { ...o, public_form_token: token } : o);
+    toast.success(t.linkCreated);
+  };
+
+  const handleRegenerateToken = async () => {
+    setRegenTokenConfirm(false);
+    await handleCreateToken();
+  };
+
   if (loading) return <div className="animate-pulse space-y-4"><Card className="h-16 bg-card border" /><Card className="h-40 bg-card border" /></div>;
 
-  const isCustomTab = activeView !== "overview" && activeView !== "settings";
+  const isCustomTab = isCustomTabView(activeView);
 
   return (
     <div className="space-y-6">
@@ -254,6 +314,11 @@ export function GtaOrgDetail() {
         <TabButton active={activeView === "overview"} onClick={() => setActiveView("overview")}>
           <Eye className="h-4 w-4" /> {t.overview}
         </TabButton>
+        {!isPlayer && (
+          <TabButton active={activeView === "submissions"} onClick={() => setActiveView("submissions")}>
+            <Inbox className="h-4 w-4" /> {t.submissions}
+          </TabButton>
+        )}
         {tabs.map(tab => (
           <div key={tab.id} className="flex items-center group">
             <TabButton active={activeView === tab.id} onClick={() => setActiveView(tab.id)}>
@@ -303,6 +368,10 @@ export function GtaOrgDetail() {
           </Card>
         )}
 
+        {activeView === "submissions" && orgId && (
+          <GtaSubmissionsTab orgId={orgId} tabs={tabs} language={language} />
+        )}
+
         {activeView === "settings" && (
           <div className="space-y-4">
             <Card className="p-6 bg-card border">
@@ -336,6 +405,45 @@ export function GtaOrgDetail() {
                 </div>
                 <Button type="submit" className="text-white hover:opacity-90" style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}>{t.save}</Button>
               </form>
+            </Card>
+            <Card className="p-6 bg-card border">
+              <h3 className="text-lg font-semibold text-foreground mb-1">{t.publicLink}</h3>
+              <p className="text-xs text-muted-foreground mb-4">{t.publicLinkHint}</p>
+              {formSections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.noFormBlocks}</p>
+              ) : (
+                <div className="space-y-3">
+                  {formSections.length > 1 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t.whichForm}</Label>
+                      <select value={selectedFormSection} onChange={e => setSelectedFormSection(e.target.value)}
+                        className="w-full h-9 px-3 rounded-md border text-sm bg-background text-foreground">
+                        {formSections.map(fs => (
+                          <option key={fs.id} value={fs.id}>{fs.tab_name}{fs.title ? ` — ${fs.title}` : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {org?.public_form_token ? (
+                    <>
+                      <div className="flex gap-2">
+                        <Input readOnly value={publicFormUrl(org.public_form_token)} className="text-sm" />
+                        <Button type="button" variant="outline" size="icon" onClick={() => copyPublicLink(org.public_form_token!)}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setRegenTokenConfirm(true)}>
+                        <RefreshCw className="h-3.5 w-3.5 mr-1" /> {t.regenerateLink}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button type="button" className="text-white hover:opacity-90" style={{ background: 'linear-gradient(135deg, #e0015b, #f43f5e)' }}
+                      onClick={handleCreateToken}>
+                      {t.createLink}
+                    </Button>
+                  )}
+                </div>
+              )}
             </Card>
             <Card className="p-6 bg-card border-red-200 dark:border-red-900/30">
               <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">{t.deleteOrg}</h3>
@@ -426,6 +534,22 @@ export function GtaOrgDetail() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Regenerate Public Link Confirmation */}
+      <AlertDialog open={regenTokenConfirm} onOpenChange={setRegenTokenConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.regenerateLinkConfirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{t.regenerateLinkConfirmBody}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleRegenerateToken}>
+              {t.regenerateLink}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Tab Confirmation */}
       <AlertDialog open={!!deleteTabConfirm} onOpenChange={(open: boolean) => { if (!open) setDeleteTabConfirm(null); }}>

@@ -5,6 +5,7 @@ import { Switch } from "../ui/switch";
 import { useLanguage } from "../../lib/language-context";
 import { useUser } from "../../lib/user-context";
 import { GtaViewModeProvider, useGtaViewMode } from "./GtaViewModeContext";
+import { GtaEventsBell } from "./GtaEventsBell";
 import {
   Gamepad2,
   LayoutDashboard,
@@ -91,6 +92,7 @@ function GtaRoleplayLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {viewMode === "owner" && <GtaEventsBell />}
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/50">
               <UserCog className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{t.player}</span>

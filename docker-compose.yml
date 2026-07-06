@@ -33,6 +33,7 @@ services:
       - study-team-service
       - file-service
       - team-service
+      - gta-service
 
   # Монолит на 4009 — fallback пока идёт миграция (Фаза 1→8)
   server:
@@ -180,6 +181,24 @@ services:
         condition: service_healthy
     ports:
       - "4008:4008"
+
+  gta-service:
+    build:
+      context: .
+      dockerfile: services/gta-service/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 4010
+      DB_HOST: db
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4010:4010"
 
   client:
     build:

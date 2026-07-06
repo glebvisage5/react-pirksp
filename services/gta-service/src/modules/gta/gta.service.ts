@@ -1,12 +1,44 @@
 import { v4 as uuidv4 } from "uuid";
 import { query, queryOne } from "../../config/database";
-import { AppError } from "../../middleware/errorHandler";
-import { encrypt, decryptFields } from "../../utils/crypto";
+import { AppError, encrypt, decrypt, decryptFields } from "@ecosystem/shared";
+import { archiveSubmissionsForOrg, archiveSubmissionsForSection } from "./submissions.service";
+import { assertOrgOwner } from "./ownership";
+import { logEvent, getOrgEventContext } from "./events.service";
 
 const SERVER_FIELDS = ["name", "project_name"];
 const ORG_FIELDS = ["name", "description", "full_description"];
 const TAB_FIELDS = ["name"];
 const SECTION_FIELDS = ["title"];
+
+const SECTION_TYPE_LABELS: Record<string, string> = {
+  text: "Текст",
+  document: "Документ",
+  members: "Участники",
+  form: "Форма",
+};
+
+async function getTabEventContext(tabId: string): Promise<{ tabName: string; orgId: string; orgName: string; serverId: string } | null> {
+  const row = await queryOne<{ name: string; org_id: string; org_name: string; server_id: string }>(`
+    SELECT t.name, t.org_id, o.name AS org_name, o.server_id
+    FROM gta_org_tabs t
+    JOIN gta_organizations o ON o.id = t.org_id
+    WHERE t.id = $1
+  `, [tabId]);
+  if (!row) return null;
+  return { tabName: decrypt(row.name), orgId: row.org_id, orgName: decrypt(row.org_name), serverId: row.server_id };
+}
+
+async function getSectionEventContext(sectionId: string): Promise<{ type: string; tabName: string; orgId: string; orgName: string; serverId: string } | null> {
+  const row = await queryOne<{ type: string; name: string; org_id: string; org_name: string; server_id: string }>(`
+    SELECT sec.type, t.name, o.id AS org_id, o.name AS org_name, o.server_id
+    FROM gta_org_sections sec
+    JOIN gta_org_tabs t ON t.id = sec.tab_id
+    JOIN gta_organizations o ON o.id = t.org_id
+    WHERE sec.id = $1
+  `, [sectionId]);
+  if (!row) return null;
+  return { type: row.type, tabName: decrypt(row.name), orgId: row.org_id, orgName: decrypt(row.org_name), serverId: row.server_id };
+}
 
 // ─── Servers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +71,7 @@ export async function createServer(data: { name: string; project_name?: string; 
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `, [id, ownerId, encrypt(data.name), data.project_name ? encrypt(data.project_name) : null, data.icon || "🎮"]);
+  await logEvent({ ownerId, type: "server.created", serverId: id, summary: `Сервер «${data.name}» создан` });
   return decryptFields(row, SERVER_FIELDS);
 }
 
@@ -57,14 +90,17 @@ export async function updateServer(id: string, data: { name?: string; project_na
 
   vals.push(id);
   const row = await queryOne(`UPDATE gta_servers SET ${sets.join(", ")} WHERE id = $${idx} RETURNING *`, vals);
-  return decryptFields(row, SERVER_FIELDS);
+  const result = decryptFields(row, SERVER_FIELDS) as { name: string };
+  await logEvent({ ownerId, type: "server.updated", serverId: id, summary: `Сервер «${result.name}» обновлён` });
+  return result;
 }
 
 export async function deleteServer(id: string, ownerId: string) {
-  const res = await query("DELETE FROM gta_servers WHERE id = $1 AND owner_id = $2", [id, ownerId]);
-  if (res.length === 0 && !(await queryOne("SELECT 1", []))) {
-    // delete returns nothing, just check it existed
-  }
+  const existing = await queryOne<{ name: string }>("SELECT name FROM gta_servers WHERE id = $1 AND owner_id = $2", [id, ownerId]);
+  if (!existing) throw new AppError(404, "Server not found");
+  // logged before the DELETE: gta_events.server_id is a real FK, so the row must still exist when the event is inserted
+  await logEvent({ ownerId, type: "server.deleted", serverId: id, summary: `Сервер «${decrypt(existing.name)}» удалён` });
+  await query("DELETE FROM gta_servers WHERE id = $1 AND owner_id = $2", [id, ownerId]);
   return { ok: true };
 }
 
@@ -107,6 +143,7 @@ export async function createOrg(serverId: string, data: { name: string; descript
     data.full_description ? encrypt(data.full_description) : null,
     data.icon || "🏢", (maxOrder?.max ?? -1) + 1,
   ]);
+  await logEvent({ ownerId, type: "org.created", serverId, orgId: id, summary: `Организация «${data.name}» создана` });
   return decryptFields(row, ORG_FIELDS);
 }
 
@@ -124,11 +161,19 @@ export async function updateOrg(orgId: string, data: { name?: string; descriptio
   if (sets.length === 0) throw new AppError(422, "Nothing to update");
   vals.push(orgId);
   const row = await queryOne(`UPDATE gta_organizations SET ${sets.join(", ")} WHERE id = $${idx} RETURNING *`, vals);
-  return decryptFields(row, ORG_FIELDS);
+  const result = decryptFields(row, ORG_FIELDS) as { name: string; server_id: string };
+  await logEvent({ ownerId, type: "org.updated", serverId: result.server_id, orgId, summary: `Организация «${result.name}» обновлена` });
+  return result;
 }
 
 export async function deleteOrg(orgId: string, ownerId: string) {
   await assertOrgOwner(orgId, ownerId);
+  const existing = await queryOne<{ name: string; server_id: string }>("SELECT name, server_id FROM gta_organizations WHERE id = $1", [orgId]);
+  // logged before the DELETE: gta_events.org_id is a real FK, so the row must still exist when the event is inserted
+  if (existing) {
+    await logEvent({ ownerId, type: "org.deleted", serverId: existing.server_id, orgId, summary: `Организация «${decrypt(existing.name)}» удалена` });
+  }
+  await archiveSubmissionsForOrg(orgId);
   await query("DELETE FROM gta_organizations WHERE id = $1", [orgId]);
   return { ok: true };
 }
@@ -152,6 +197,10 @@ export async function createTab(orgId: string, data: { name: string }, ownerId: 
     VALUES ($1, $2, $3, $4)
     RETURNING *
   `, [id, orgId, encrypt(data.name), count?.cnt ?? 0]);
+  const orgCtx = await getOrgEventContext(orgId);
+  if (orgCtx) {
+    await logEvent({ ownerId, type: "tab.created", serverId: orgCtx.serverId, orgId, summary: `Добавлена вкладка «${data.name}» в организации «${orgCtx.name}»` });
+  }
   return decryptFields(row, TAB_FIELDS);
 }
 
@@ -172,6 +221,10 @@ export async function updateTab(tabId: string, data: { name?: string; sort_order
 
 export async function deleteTab(tabId: string, ownerId: string) {
   await assertTabOwner(tabId, ownerId);
+  const ctx = await getTabEventContext(tabId);
+  if (ctx) {
+    await logEvent({ ownerId, type: "tab.deleted", serverId: ctx.serverId, orgId: ctx.orgId, summary: `Удалена вкладка «${ctx.tabName}» из организации «${ctx.orgName}»` });
+  }
   await query("DELETE FROM gta_org_tabs WHERE id = $1", [tabId]);
   return { ok: true };
 }
@@ -193,6 +246,11 @@ export async function createSection(tabId: string, data: { type: string; title?:
     VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `, [id, tabId, data.type, data.title ? encrypt(data.title) : null, JSON.stringify(data.config || {}), (maxOrder?.max ?? -1) + 1]);
+  const tabCtx = await getTabEventContext(tabId);
+  if (tabCtx) {
+    const typeLabel = SECTION_TYPE_LABELS[data.type] ?? data.type;
+    await logEvent({ ownerId, type: "section.created", serverId: tabCtx.serverId, orgId: tabCtx.orgId, summary: `Добавлен блок «${typeLabel}» во вкладке «${tabCtx.tabName}» (${tabCtx.orgName})` });
+  }
   return decryptFields(row, SECTION_FIELDS);
 }
 
@@ -209,11 +267,25 @@ export async function updateSection(sectionId: string, data: { title?: string; c
   if (sets.length === 0) throw new AppError(422, "Nothing to update");
   vals.push(sectionId);
   const row = await queryOne(`UPDATE gta_org_sections SET ${sets.join(", ")} WHERE id = $${idx} RETURNING *`, vals);
+  // sort_order-only reorders (drag-and-drop) shouldn't spam the feed — only log when content actually changed
+  if (data.title !== undefined || data.config !== undefined) {
+    const ctx = await getSectionEventContext(sectionId);
+    if (ctx) {
+      const typeLabel = SECTION_TYPE_LABELS[ctx.type] ?? ctx.type;
+      await logEvent({ ownerId, type: "section.updated", serverId: ctx.serverId, orgId: ctx.orgId, summary: `Обновлён блок «${typeLabel}» во вкладке «${ctx.tabName}» (${ctx.orgName})` });
+    }
+  }
   return decryptFields(row, SECTION_FIELDS);
 }
 
 export async function deleteSection(sectionId: string, ownerId: string) {
   await assertSectionOwner(sectionId, ownerId);
+  const ctx = await getSectionEventContext(sectionId);
+  if (ctx) {
+    const typeLabel = SECTION_TYPE_LABELS[ctx.type] ?? ctx.type;
+    await logEvent({ ownerId, type: "section.deleted", serverId: ctx.serverId, orgId: ctx.orgId, summary: `Удалён блок «${typeLabel}» из вкладки «${ctx.tabName}» (${ctx.orgName})` });
+  }
+  await archiveSubmissionsForSection(sectionId);
   await query("DELETE FROM gta_org_sections WHERE id = $1", [sectionId]);
   return { ok: true };
 }
@@ -266,15 +338,6 @@ export async function getDashboardStats(ownerId: string) {
 async function assertServerOwner(serverId: string, ownerId: string) {
   const row = await queryOne("SELECT id FROM gta_servers WHERE id = $1 AND owner_id = $2", [serverId, ownerId]);
   if (!row) throw new AppError(404, "Server not found");
-}
-
-async function assertOrgOwner(orgId: string, ownerId: string) {
-  const row = await queryOne(`
-    SELECT o.id FROM gta_organizations o
-    JOIN gta_servers s ON s.id = o.server_id
-    WHERE o.id = $1 AND s.owner_id = $2
-  `, [orgId, ownerId]);
-  if (!row) throw new AppError(404, "Organization not found");
 }
 
 async function assertTabOwner(tabId: string, ownerId: string) {

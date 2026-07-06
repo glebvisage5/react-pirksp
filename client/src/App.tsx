@@ -30,6 +30,7 @@ import { GtaDashboard } from "./components/gta-roleplay/GtaDashboard";
 import { GtaServers } from "./components/gta-roleplay/GtaServers";
 import { GtaServerDetail } from "./components/gta-roleplay/GtaServerDetail";
 import { GtaOrgDetail } from "./components/gta-roleplay/GtaOrgDetail";
+import { GtaPublicForm } from "./components/gta-roleplay/GtaPublicForm";
 import { AdminModeDashboard } from "./components/educrm-admin/AdminModeDashboard";
 import { AdminModeGroups } from "./components/educrm-admin/AdminModeGroups";
 import { AdminModeStudents } from "./components/educrm-admin/AdminModeStudents";
@@ -384,6 +385,8 @@ function AppRoutes() {
         <Route path="admin/roles" element={<AdminModeRoles />} />
         <Route path="admin/settings" element={<AdminModeSettings />} />
       </Route>
+
+      <Route path="/gta-rp/public/forms/:token" element={<GtaPublicForm />} />
 
       <Route path="/gta-rp" element={<RequireOwner><GtaRoleplay /></RequireOwner>}>
         <Route index element={<Navigate to="dashboard" replace />} />

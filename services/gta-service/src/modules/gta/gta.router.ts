@@ -4,8 +4,8 @@ import fs from "fs";
 import multer from "multer";
 import { z } from "zod";
 import * as svc from "./gta.service";
-import { requireAuth, requireOwner } from "../../middleware/auth";
-import { AppError } from "../../middleware/errorHandler";
+import * as eventsSvc from "./events.service";
+import { requireAuth, requireOwner, AppError } from "@ecosystem/shared";
 import { env } from "../../config/env";
 
 const router = Router();
@@ -68,6 +68,19 @@ router.post("/upload-icon", requireAuth, requireOwner, iconUpload.single("file")
 
 router.get("/dashboard/stats", requireAuth, requireOwner, async (req: Request, res: Response, next: NextFunction) => {
   try { res.json(await svc.getDashboardStats(req.user!.userId)); } catch (e) { next(e); }
+});
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+
+router.get("/events", requireAuth, requireOwner, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { serverId, orgId, limit } = req.query;
+    res.json(await eventsSvc.listEvents(req.user!.userId, {
+      serverId: typeof serverId === "string" ? serverId : undefined,
+      orgId: typeof orgId === "string" ? orgId : undefined,
+      limit: typeof limit === "string" ? Number(limit) : undefined,
+    }));
+  } catch (e) { next(e); }
 });
 
 // ─── Servers ──────────────────────────────────────────────────────────────────

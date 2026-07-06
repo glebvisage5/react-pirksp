@@ -14,7 +14,6 @@ import teamsRouter from "./modules/teams/teams.router";
 import studyTeamsRouter from "./modules/study-teams/study-teams.router";
 import filesRouter from "./modules/files/files.router";
 import usersRouter from "./modules/users/users.router";
-import gtaRouter from "./modules/gta/gta.router";
 
 const app = express();
 
@@ -49,7 +48,6 @@ app.use("/api/teams", teamsRouter);
 app.use("/api/study-teams", studyTeamsRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/users", usersRouter);
-app.use("/api/gta", gtaRouter);
 
 app.use(errorHandler);
 
